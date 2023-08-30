@@ -48,13 +48,6 @@ and climate atmospheric models.
    applications using Digital Research Alliance (DRA) HPCs
 
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
 .. rubric:: Footnotes
 .. [#] Pietroniro, A., V. Fortin, N. Kouwen, C. Neal, R. Turcotte, B. Davison, D. Verseghy et al. "Development of the MESH modelling system for hydrological ensemble forecasting of the Laurentian Great Lakes at the regional scale." Hydrology and Earth System Sciences 11, no. 4 (2007): 1279-1294.
 .. [#] Wheater, Howard S., John W. Pomeroy, Alain Pietroniro, Bruce Davison, Mohamed Elshamy, Fuad Yassin, Prabin Rokaya et al. "Advances in modelling large river basins in cold regions with Modélisation Environmentale Communautaire—Surface and Hydrology (MESH), the Canadian hydrological land surface scheme." Hydrological Processes 36, no. 4 (2022): e14557.
