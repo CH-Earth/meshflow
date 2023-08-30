@@ -9,10 +9,10 @@ Welcome to Meshflow's documentation!
 spatial domain of interest. This package is prepared in Python and can be
 accessed from command line using its Command Line Interface. 
 
-MESH (Modélisation Environnementale communautaire - Surface Hydrology) is
+``MESH`` (Modélisation Environnementale communautaire - Surface Hydrology) is
 the hydrology land-surface scheme (HLSS) of Environment and Climate Change
 Canada's (ECCC's) community environmental modelling system (Pietroniro et
-al. 2007), and is complimentary to ECCC's GEM-Hydro modelling platform.
+al. 2007) [#]_, and is complimentary to ECCC's GEM-Hydro modelling platform.
 MESH allows different surface component models to coexist within the same
 modelling framework so that they can easily be compared for the same
 experiment using exactly the same forcings, interpolation procedures,
@@ -25,11 +25,11 @@ or reanalysis products.
 
 Early stages and recent evolution of Environment Canada's
 atmospheric-hydrologic-land-surface modelling system are described in
-Pietroniro et al. (2007) and Wheater et al. (2022). A conceptual framework
+Pietroniro et al. (2007) and Wheater et al. (2022) [#]_. A conceptual framework
 for model development was initiated using different degrees of model
 coupling that range from a linked model which requires separate
 calibration of the atmospheric model and the hydrological model to a
-complete two way coupled model Soulis et al. (2005). MESH evolved from the
+complete two way coupled model Soulis et al. (2005) [#]_. MESH evolved from the
 WATCLASS model which links WATFLOOD routing model to the Canadian Land
 Surface Scheme (CLASS), was used as a basis for coupling with both weather
 and climate atmospheric models.
@@ -48,10 +48,14 @@ and climate atmospheric models.
    applications using Digital Research Alliance (DRA) HPCs
 
 
-
 Indices and tables
 ==================
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. rubric:: Footnotes
+.. [#] Pietroniro, A., V. Fortin, N. Kouwen, C. Neal, R. Turcotte, B. Davison, D. Verseghy et al. "Development of the MESH modelling system for hydrological ensemble forecasting of the Laurentian Great Lakes at the regional scale." Hydrology and Earth System Sciences 11, no. 4 (2007): 1279-1294.
+.. [#] Wheater, Howard S., John W. Pomeroy, Alain Pietroniro, Bruce Davison, Mohamed Elshamy, Fuad Yassin, Prabin Rokaya et al. "Advances in modelling large river basins in cold regions with Modélisation Environmentale Communautaire—Surface and Hydrology (MESH), the Canadian hydrological land surface scheme." Hydrological Processes 36, no. 4 (2022): e14557.
+.. [#] Soulis, E. D., N. Kouwen, Al Pietroniro, F. R. Seglenieks, K. R. Snelgrove, P. Pellerin, D. W. Shaw, and L. W. Martz. "A framework for hydrological modelling in MAGS." Prediction in Ungauged Basins: Approaches for Canada’s Cold Regions, edited by: Spence, C., Pomeroy, JW and Pietroniro, A., Canadian Water Resources Association (2005): 119-138.
