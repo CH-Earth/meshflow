@@ -9,7 +9,13 @@ description = 'MeshFlow aims to facilitate setting up MESH models for any tempor
 readme = "README.md"
 requires-python = ">=3.7"
 license = "GPL-3.0-or-later"
-keywords = []
+keywords = [
+  "MESH",
+  "ECCC",
+  "Meshflow",
+  "Hydrology",
+  "Landsurface"
+]
 authors = [
   { name = "Kasra Keshavarz", email = "kasra.keshavarz1@ucalgary.ca" },
 ]
@@ -39,13 +45,15 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "networkx>=3.1",
-  "pintxarray>=0.3",
-  "xarray>=2023.7.0",
+  "pint-xarray>=0.2.1",
+  "xarray>=0.11",
   "geopandas>=0.13.2",
   "pandas>=1.4.0",
   "numpy>=1.22.2",
   "typing_extensions>=4.7.1",
   "hydrant>=0.1.0-dev0",
+  "click>=8.1.2",
+  "netCDF4>=1.6.4"
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"

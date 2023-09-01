@@ -6,9 +6,8 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import geopandas as gpd
-import networkx as nx
 
-import hydrant.topology as htp
+from hydrant.topology import river_graph
 
 from typing import (
     Iterable,
@@ -21,7 +20,7 @@ import re
 def extract_rank_next(
     seg: Iterable,
     ds_seg: Iterable,
-    outlet_value: int=-9999,
+    outlet_value: int = -9999,
 ) -> Tuple[np.ndarray, ...]:
     '''Producing rank_var and next_var variables needed for 
     MESH modelling
@@ -67,97 +66,98 @@ def extract_rank_next(
     https://github.com/MESH-Model/MESH-Scripts
     <last accessed on August 29th, 2023>
     '''
-    
+
     # extracting numpy array out of input iterables
     seg_arr = np.array(seg)
     ds_seg_arr = np.array(ds_seg)
-    
+
     # re-order ids to match MESH's requirements
     seg_id, to_segment = _adjust_ids(seg_arr, ds_seg_arr)
- 
+
     # Count the number of outlets
     outlets = np.where(to_segment == outlet_value)[0]
- 
+
     # Search over to extract the subbasins drain into each outlet
     rank_var_id_domain = np.array([]).astype(int)
     outlet_number = np.array([]).astype(int)
-    
+
     for k in range(len(outlets)):
-        # initial step 
+        # initial step
         seg_id_target = seg_id[outlets[k]]
-        # set the rank_var of the outlet 
+        # set the rank_var of the outlet
         rank_var_id = outlets[k]
- 
+
         # find upstream seg_ids draining into the chosen outlet [indexed `k`]
-        while(np.size(seg_id_target) >= 1):
+        while (np.size(seg_id_target) >= 1):
             if (np.size(seg_id_target) == 1):
                 r = np.where(to_segment == seg_id_target)[0]
             else:
                 r = np.where(to_segment == seg_id_target[0])[0]
-            # updated the target seg_id 
+            # updated the target seg_id
             seg_id_target = np.append(seg_id_target, seg_id[r])
             # remove the first searched target
-            seg_id_target = np.delete(seg_id_target,0,0)
+            seg_id_target = np.delete(seg_id_target, 0, 0)
             if (len(seg_id_target) == 0):
                 break
             # update the rank_var_id
-            rank_var_id = np.append(rank_var_id,r)
+            rank_var_id = np.append(rank_var_id, r)
         rank_var_id = np.flip(rank_var_id)
         if (np.size(rank_var_id) > 1):
-            outlet_number = np.append(outlet_number, (k)*np.ones((len(rank_var_id),1)).astype(int))
+            outlet_number = np.append(outlet_number,
+                                      (k)*np.ones((len(rank_var_id), 1)).astype(int))
         else:
             outlet_number = np.append(outlet_number, (k))
         rank_var_id_domain = np.append(rank_var_id_domain, rank_var_id)
         rank_var_id = []
-    
-    # reorder seg_id and to_segment 
+
+    # reorder seg_id and to_segment
     seg_id = seg_id[rank_var_id_domain]
     to_segment = to_segment[rank_var_id_domain]
- 
+
     # rearrange outlets to be consistent with MESH outlet structure
-    # In MESH outlets should be placed at the end of the `NEXT` variable 
+    # In MESH outlets should be placed at the end of the `NEXT` variable
     na = len(rank_var_id_domain)
     fid1 = np.where(to_segment != outlet_value)[0]
     fid2 = np.where(to_segment == outlet_value)[0]
-    fid =  np.append(fid1,fid2)
- 
+    fid = np.append(fid1, fid2)
+
     rank_var_id_domain = rank_var_id_domain[fid]
-    seg_id =seg_id[fid]
+    seg_id = seg_id[fid]
     to_segment = to_segment[fid]
     outlet_number = outlet_number[fid]
- 
-    # construct rank_var and next_var variables 
+
+    # construct rank_var and next_var variables
     next_var = np.zeros(na).astype(np.int32)
- 
+
     for k in range(na):
         if (to_segment[k] != outlet_value):
             r = np.where(to_segment[k] == seg_id)[0] + 1
             next_var[k] = r
         else:
             next_var[k] = 0
- 
+
     # Construct rank_var from 1:na
-    rank_var = np.arange(1,na+1).astype(np.int32)
- 
+    rank_var = np.arange(1, na+1).astype(np.int32)
+
     return rank_var, next_var, seg_id, to_segment
 
 
 def _check_geo_obj_dtype(obj):
-    # check `riv`'s dtype
-    ## if it is a path string
+    # check `obj`'s dtype
+    # if it is a path string
     if isinstance(obj, str):
         obj = gpd.read_file(obj)
-    ## if it is a geopandas.GeoDataFrame
+    # if it is a geopandas.GeoDataFrame
     elif isinstance(obj, gpd.GeoDataFrame):
         pass
-    ## if it is a list of str paths
+    # if it is a list of str paths
     elif isinstance(obj[0], str):
-        obj = gpd.GeoDataFrame(pd.concat([gpd.read_file(f) for f in riv]))
+        obj = gpd.GeoDataFrame(pd.concat([gpd.read_file(f) for f in obj]))
     else:
         raise TypeError("The type of the `riv` could be a string path, "
                         "a list of string paths, or a geopandas.GeoDataframe "
                         "object")
-    
+
     # return a copy of the GeoDataFrame object
     return obj.copy()
 
@@ -175,28 +175,28 @@ def _adjust_ids(
     # river segments
     main_id_str = 'main_id'
     ds_main_id_str = 'ds_main_id'
-    
+
     # creating a pandas DataFrame of `seg_id` and `ds_seg_id`
     riv_df = pd.concat([pd.Series(arr) for arr in [seg_id, ds_seg_id]],
                        names=[main_id_str, ds_main_id_str],
                        axis=1)
     # naming columns, in case needed
     riv_df.columns = [main_id_str, ds_main_id_str]
-    
-    # extracting the longest branch out of "hydrant"'s `sanity_checks`
-    # module
-    longest_branch = htp.sanity_checks.longest_branch(riv=riv_df,
-                                                      main_id=main_id_str,
-                                                      ds_main_id=ds_main_id_str)
+
+    # extracting the longest branch out of "hydrant"
+    longest_branch = river_graph.longest_branch(
+                                    riv=riv_df,
+                                    main_id=main_id_str,
+                                    ds_main_id=ds_main_id_str)
 
     # selecting first and last (while not counting the outlet value, so -2)
     first_node = longest_branch[0]
     last_node = longest_branch[-2]
-    
+
     # extracting the index of first and last nodes
     first_idx = riv_df.index[riv_df[main_id_str] == first_node]
     last_idx = riv_df.index[riv_df[main_id_str] == last_node]
-    
+
     # building new `riv_df` with new index values
     idx = pd.Index(first_idx.to_list() + riv_df.index.to_list())
     idx = idx.drop_duplicates(keep='first')
@@ -206,11 +206,11 @@ def _adjust_ids(
 
     # reseting index, just to reassure
     riv_df.reset_index(drop=True, inplace=True)
-    
+
     # extracting np.ndarrays
     new_seg_id = riv_df[main_id_str].to_numpy()
     new_ds_seg_id = riv_df[ds_main_id_str].to_numpy()
-    
+
     return new_seg_id, new_ds_seg_id
 
 
@@ -218,24 +218,22 @@ def _prepare_landcover_mesh(
     landcover: pd.DataFrame,
     cat_dim: str,
     gru_dim: str,
-    landcover_ds_name: str='landcover',
-    dummy_col_name: int=None,
-    dummy_col_value: int=0,
+    landcover_ds_name: str = 'landcover',
+    dummy_col_name: int = None,
+    dummy_col_value: int = 0,
 ) -> xr.Dataset:
     '''Implements necessary landcover manipulations by:
     1) removing columns with no contribution (sum=0),
     2) assigning `cat_dim` column as index,
     3) assigning a dummy variables as needed by MESH,
     4) QA/QC on the select parameters indicated in `cols`,
-    5) 
+    5)
     '''
-    if dummy_col_name == None:
+    if dummy_col_name is None:
         dummy_col_name = 9999
-    
+
     # remove zero-sum columns
     landcover = landcover.loc[:, landcover.sum(axis=0) > 0]
-    # setting `cat_dim` column
-    landcover.set_index(cat_dim, inplace=True, drop=True)
     # removing non-digit characters from columns, if any
     landcover.columns = [int(re.sub('\D', '', c)) for c in landcover.columns]
     # set column name for landcover classes
@@ -246,7 +244,7 @@ def _prepare_landcover_mesh(
     landcover_da = landcover.stack().to_xarray()
     # converting to xr.Dataset
     landcover_ds = landcover_da.to_dataset(name=landcover_ds_name)
-    
+
     return landcover_ds
 
 
@@ -261,10 +259,9 @@ def _prepare_coords_mesh(
        refers to the ID of each element, i.e., COMID.
     2) returning an xarray.Dataset object 
     '''
-    
+
     coords = coords.copy().set_index(cat_dim).to_xarray()
-    
-    
+
     return coords
 
 
@@ -291,11 +288,11 @@ def _set_min_values(
     '''
     # make a copy of the dataset
     ds = ds.copy()
-    
+
     # set the minimum values
-    for var,val in min_values.items():
+    for var, val in min_values.items():
         ds[var] = xr.where(ds[var] <= val, val, ds[var])
-    
+
     return ds
 
 
@@ -310,18 +307,18 @@ def _fill_na_ds(
     '''
     # make a copy of the dataset
     ds = ds.copy()
-    
+
     # replacing NAs
-    for var,val in na_values.items():
+    for var, val in na_values.items():
         ds[var] = xr.where(ds[var] == np.nan, val, ds[var])
-    
+
     return ds
 
 
 def _prepare_geodataframe_mesh(
     geodf: gpd.GeoDataFrame,
     cat_dim: str,
-    geometry_dim: str='geometry',
+    geometry_dim: str ='geometry',
 ) -> xr.Dataset:
     '''Implements necessary geodf manipulations by:
     1) removing the `geometry_dim` column of the 
@@ -334,7 +331,7 @@ def _prepare_geodataframe_mesh(
     '''
     # drop the `geometry_var` column
     geodf = geodf.copy().drop(columns=geometry_dim)
-    
+
     return geodf.set_index(cat_dim).to_xarray()
 
 
@@ -348,9 +345,9 @@ def prepare_mesh_ddb(
     include_vars: Dict[str, str],
     attr_local: Dict[str, Dict[str, str]],
     attr_global: Dict[str, str],
-    min_values: Dict[str, float]=None,
-    fill_na: Dict[str, float]=None,
-    ordered_dims: Dict[str, Iterable]=None,
+    min_values: Dict[str, float] = None,
+    fill_na: Dict[str, float] = None,
+    ordered_dims: Dict[str, Iterable] = None,
 ) -> xr.Dataset:
     '''Prepares the drainage database (ddb) of the MESH model.
     The function implements a set of ad-hoc manipulations on
@@ -411,95 +408,88 @@ def prepare_mesh_ddb(
     
     '''
     # define necessary variables
-    geometry_var = 'geometry' # geopandas.GeoDataFrame geometry column name
-    landcover_var = 'landcover' # landcover variable name in the xarray.Dataset object
-    dummy_col = 9999 # MESH's dummy landcover class dimension/column name
-    dummy_col_value = 0 # MESH's dummy landcover class value
-    
+    geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
+    landcover_var = 'landcover'  #landcover variable name in the xarray.Dataset object
+    dummy_col = 9999  # MESH's dummy landcover class dimension/column name
+    dummy_col_value = 0  # MESH's dummy landcover class value
+
     # check `riv` and `cat` dtypes
     riv = _check_geo_obj_dtype(riv)
     cat = _check_geo_obj_dtype(cat)
-    
+
     # check `landcover` and `coords` dtypes
     if not any([isinstance(landcover, pd.DataFrame),
                 isinstance(coords, pd.DataFrame)
-               ]):
+                ]):
         raise TypeError("`landcover` and `coords` must be of type "
                         "pandas.DataFrame")
-    
-    ## make actual xarray.Dataset objects for `riv` and `cat`
+
+    # make actual xarray.Dataset objects for `riv` and `cat`
     riv_ds, cat_ds = (_prepare_geodataframe_mesh(geodf,
                                                  cat_dim=cat_dim,
                                                  geometry_dim=geometry_var,
-                                                )
-                      for geodf in [riv, cat]
-                     )
-    ## make xarray.Dataset object for `coords`
+                                                 )
+                      for geodf in [riv, cat])
+    # make xarray.Dataset object for `coords`
     coords_ds = _prepare_coords_mesh(coords,
-                                     cat_dim=cat_dim,
-                                    )
-    ## make xarray.Dataset object for `landcover`
+                                     cat_dim=cat_dim)
+    # make xarray.Dataset object for `landcover`
     landcover_ds = _prepare_landcover_mesh(landcover,
                                            cat_dim=cat_dim,
                                            gru_dim=gru_dim,
                                            landcover_ds_name=landcover_var,
                                            dummy_col_name=dummy_col,
-                                           dummy_col_value=dummy_col_value,
-                                          )
-    ## making a list of all xarray.Dataset objects
+                                           dummy_col_value=dummy_col_value,)
+    # making a list of all xarray.Dataset objects
     ds_list = [riv_ds,
                cat_ds,
                landcover_ds,
-               coords_ds,
-              ]
-    
+               coords_ds]
+
     # merging all xarray objects into one
     ddb = xr.combine_by_coords(ds_list, compat='override')
-        
+
     # only select `include_vars` variable(s) while renaming
     # based on the _values_ (NOT KEYS) of the dictionary
     ddb = ddb.rename_vars(name_dict=include_vars)
     ddb = ddb[list(include_vars.values())]
-    
-   # TEMPORARY SOLUTION
+
+    # TEMPORARY SOLUTION
     ddb['GridArea'] *= 1e6
     ddb['ChnlLength'] *= 1e3
     ddb['crs'] = 1
     ddb = ddb.set_coords(['lat', 'lon'])
 
     # fill NA values for `ddb`
-    if fill_na != None:
-        ddb = _fill_na_ds(ds=ddb, 
+    if fill_na is not None:
+        ddb = _fill_na_ds(ds=ddb,
                           na_values=fill_na)
-    
+
     # assinging minimum values for `ddb`
-    if min_values != None:
-        ddb = _set_min_values(ds=ddb, 
+    if min_values is not None:
+        ddb = _set_min_values(ds=ddb,
                               min_values=min_values)
-        
+
     # sort dimensions of `ddb`
-    if ordered_dims != None:
+    if ordered_dims is not None:
         ddb = ddb.reindex(indexers=ordered_dims,
                           copy=True)
-    
+
     # assigning local attributes for each variable
     if bool(attr_local):
         for var, val in attr_local.items():
             for attr, desc in val.items():
                 ddb[var].attrs[attr] = desc
-    
+
     # assigning global attributes for `ddb`
     if bool(attr_global):
         for attr, desc in attr_global.items():
             ddb.attrs[attr] = desc
-            
+
     # rename ddb dimension
     ddb = ddb.rename({cat_dim: 'subbasin'})
-    
+
     # change the value of `gru`
     ddb['gru'] = range(0, len(ddb['gru']))
-    
-            
-    
-    return ddb
 
+    return ddb
