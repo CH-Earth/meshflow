@@ -1,10 +1,14 @@
+"""
+Containing important functions for preparing "forcing" database for MESH
+models
+"""
+
 
 import cdo  # binary required >2.2.1
 import xarray as xr  # requires xarray >2023.7.0
 import pint_xarray  # requires typing_extensions >4.7.1
 import pint  # pint >0.22
 
-import os
 from typing import (
     Sequence,
     Dict,
@@ -81,8 +85,8 @@ def mesh_forcing(
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence
-    for k, _ in units.items():
-        if k not in ds.keys():
+    for k in units:
+        if k not in ds:
             raise ValueError(f"item {k} defined in `units` cannot be found"
                              " in `variables`")
 
@@ -106,4 +110,47 @@ def mesh_forcing(
     var = [i for i in ds.dims.keys() if i != 'time']
     ds = ds.transpose().rename({k: 'subbasin' for k in var})
 
+    # convert calendar to 'standard' based on MESH's input standard
+    ds = ds.convert_calendar(calendar='standard',
+                             dim='time',
+                             align_on=None)
+
+    # adding CRS variable
+    ds['crs'] = 1
+
     return ds
+
+
+def freq_long_name(
+    freq_alias: 'str'
+) -> str:
+    """returning fullname of a offset alias based on pandas conventions
+
+    Paramters
+    ---------
+    freq_alias: str
+        Time offset alias which is usually a single character to represent
+        time interval frequencies, such as 'H' for 'hours'
+
+    Returns
+    -------
+    str
+        fullname of the time offset
+    """
+
+    if not isinstance(freq_alias, str):
+        raise TypeError(f"frequency value of \'{freq_alias}\' is not"
+                        "acceptable")
+
+    if freq_alias in ('H'):
+        return 'hours'
+    elif freq_alias in ('T', 'min'):
+        return 'minutes'
+    elif freq_alias in ('S'):
+        return 'seconds'
+    elif freq_alias in ('L', 'ms'):
+        return 'milliseconds'
+    else:
+        raise ValueError(f"frequency value \'{freq_alias}\' is not"
+                         "acceptable")
+    return
