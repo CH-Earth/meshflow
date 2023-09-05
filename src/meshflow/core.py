@@ -10,6 +10,7 @@ framework to the North American domain.
 
 import pandas as pd
 import geopandas as gpd
+import numpy as np
 import pint
 
 from typing import (
@@ -315,8 +316,12 @@ class MESHWorkflow(object):
         # printing drainage database netcdf file
         self.ddb.to_netcdf(os.path.join(output_dir, ddb_file))
 
-        # printin forcing netcdf file
-        self.forcing.to_netcdf(os.path.join(output_dir, forcing_file))
+        # necessary operations on the xarray.Dataset self.focring object
+        self._modify_forcing_encodings()
+        # printing forcing netcdf file
+        self.forcing.to_netcdf(os.path.join(output_dir, forcing_file),
+                               format='NETCDF4_CLASSIC',
+                               unlimited_dims=['time'])
 
         return
 
@@ -379,6 +384,26 @@ class MESHWorkflow(object):
                                           )
 
         return _reordered_riv
+
+    def _modify_forcing_encodings(self):
+        """Necessary adhoc modifications on the forcing object's
+        encoding
+        """
+        # empty encoding dictionary of the `time` variable
+        self.forcing.time.encoding = {}
+        # estimate the frequency offset value
+        _freq = pd.infer_freq(self.forcing.time)
+        # get the full name
+        _freq_long = utility.forcing_prep.freq_long_name(_freq)
+
+        _encoding = {
+            'time': {
+                'units': f'{_freq_long} since 1900-01-01 12:00:00'
+            }
+        }
+        self.forcing.time.encoding = _encoding
+
+        return
 
     def _progress_bar():
         return
