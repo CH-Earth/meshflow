@@ -248,23 +248,6 @@ def _prepare_landcover_mesh(
     return landcover_ds
 
 
-def _prepare_coords_mesh(
-    coords: pd.DataFrame,
-    cat_dim: str,
-) -> xr.Dataset:
-    '''Implements necessary coords manipulations by:
-    1) setting the index to the catchment element
-       dimension variable `cat_dim`. For example, in 
-       MERIT-Basins geospatial data, the `cat_dim` 
-       refers to the ID of each element, i.e., COMID.
-    2) returning an xarray.Dataset object 
-    '''
-
-    coords = coords.copy().set_index(cat_dim).to_xarray()
-
-    return coords
-
-
 def _set_min_values(
     ds: xr.Dataset,
     min_values: Dict[str, float],
@@ -280,7 +263,7 @@ def _set_min_values(
     min_values : dict
         a dictionary with keys corresponding to any of the `ds`
         variables, and values corresponding to the minimums
-    
+
     Returns
     -------
     ds : xarray.Dataset
@@ -339,7 +322,6 @@ def prepare_mesh_ddb(
     riv: gpd.GeoDataFrame,
     cat: gpd.GeoDataFrame,
     landcover: pd.DataFrame,
-    coords: pd.DataFrame,
     cat_dim: str,
     gru_dim: str,
     include_vars: Dict[str, str],
@@ -348,12 +330,14 @@ def prepare_mesh_ddb(
     min_values: Dict[str, float] = None,
     fill_na: Dict[str, float] = None,
     ordered_dims: Dict[str, Iterable] = None,
+    ddb_units: Dict[str, str] = None,
+    ddb_to_units: Dict[str, str] = None,
 ) -> xr.Dataset:
     '''Prepares the drainage database (ddb) of the MESH model.
     The function implements a set of ad-hoc manipulations on
     the river network and catchment geospatial data to prepare
     the ddb.
-    
+
     Parameters
     ----------
     riv : str of ESRI Shapefile path, or list of paths, or geopandas.GeoDataFrame
@@ -377,8 +361,8 @@ def prepare_mesh_ddb(
         The dimension name corresponding to the landcover classes
         after necessary manipulations on `landcover`
     include_vars : dict
-        The keys correspond to the variables of `riv`, `cat`, or 
-        `landcover` to be included in the returned xarray.Dataset, 
+        The keys correspond to the variables of `riv`, `cat`, or
+        `landcover` to be included in the returned xarray.Dataset,
         and the values correspond to the rename values
     attr_local : dict
         The keys correspond to the renamed value of `include_vars`
@@ -400,16 +384,16 @@ def prepare_mesh_ddb(
     ordered_dims : Dict[str, array-like], optional
         Sorting dimensions of the `ddb` taken as keys of the `ordered_dims`
         and ordered values of each as their corresponding values
-    
+
     Returns
     -------
     ddb : xarray.Dataset
         drainage database in an xarray.Dataset object with necessary information
-    
+
     '''
     # define necessary variables
     geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
-    landcover_var = 'landcover'  #landcover variable name in the xarray.Dataset object
+    landcover_var = 'landcover'  # landcover variable name in the object
     dummy_col = 9999  # MESH's dummy landcover class dimension/column name
     dummy_col_value = 0  # MESH's dummy landcover class value
 
@@ -418,9 +402,7 @@ def prepare_mesh_ddb(
     cat = _check_geo_obj_dtype(cat)
 
     # check `landcover` and `coords` dtypes
-    if not any([isinstance(landcover, pd.DataFrame),
-                isinstance(coords, pd.DataFrame)
-                ]):
+    if not isinstance(landcover, pd.DataFrame):
         raise TypeError("`landcover` and `coords` must be of type "
                         "pandas.DataFrame")
 
@@ -430,21 +412,19 @@ def prepare_mesh_ddb(
                                                  geometry_dim=geometry_var,
                                                  )
                       for geodf in [riv, cat])
-    # make xarray.Dataset object for `coords`
-    coords_ds = _prepare_coords_mesh(coords,
-                                     cat_dim=cat_dim)
+
     # make xarray.Dataset object for `landcover`
     landcover_ds = _prepare_landcover_mesh(landcover,
                                            cat_dim=cat_dim,
                                            gru_dim=gru_dim,
                                            landcover_ds_name=landcover_var,
                                            dummy_col_name=dummy_col,
-                                           dummy_col_value=dummy_col_value,)
+                                           dummy_col_value=dummy_col_value)
+
     # making a list of all xarray.Dataset objects
     ds_list = [riv_ds,
                cat_ds,
-               landcover_ds,
-               coords_ds]
+               landcover_ds]
 
     # merging all xarray objects into one
     ddb = xr.combine_by_coords(ds_list, compat='override')
@@ -454,11 +434,28 @@ def prepare_mesh_ddb(
     ddb = ddb.rename_vars(name_dict=include_vars)
     ddb = ddb[list(include_vars.values())]
 
-    # TEMPORARY SOLUTION
-    ddb['GridArea'] *= 1e6
-    ddb['ChnlLength'] *= 1e3
-    ddb['crs'] = 1
-    ddb = ddb.set_coords(['lat', 'lon'])
+    # check to see if all the keys included in the `units` dictionary are
+    # found inside the `variables` sequence
+    for k in ddb_units:
+        if k not in ddb:
+            raise ValueError(f"item {k} defined in `units` cannot be found"
+                             " in `variables`")
+
+    # if all elements of `variables` not found in `units`,
+    # assign them to None
+    for v in include_vars:
+        if v not in ddb_units:
+            ddb_units[v] = None
+
+    # now assign the units - assuming `pint`'s default unit registery
+    ddb = ddb.pint.quantify(units=ddb_units)
+
+    # if `to_units` is defined
+    if ddb_to_units:
+        ddb = ddb.pint.to(units=ddb_to_units)
+
+    # print the netCDF file
+    ddb = ddb.pint.dequantify()
 
     # fill NA values for `ddb`
     if fill_na is not None:
@@ -476,20 +473,20 @@ def prepare_mesh_ddb(
                           copy=True)
 
     # assigning local attributes for each variable
-    if bool(attr_local):
+    if attr_local:
         for var, val in attr_local.items():
             for attr, desc in val.items():
                 ddb[var].attrs[attr] = desc
 
     # assigning global attributes for `ddb`
-    if bool(attr_global):
+    if attr_global:
         for attr, desc in attr_global.items():
             ddb.attrs[attr] = desc
 
     # rename ddb dimension
     ddb = ddb.rename({cat_dim: 'subbasin'})
 
-    # change the value of `gru`
+    # change the value of `gru` dimension
     ddb['gru'] = range(0, len(ddb['gru']))
 
     return ddb

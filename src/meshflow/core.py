@@ -10,7 +10,7 @@ framework to the North American domain.
 
 import pandas as pd
 import geopandas as gpd
-import numpy as np
+import xarray as xr
 import pint
 
 from typing import (
@@ -27,6 +27,9 @@ import os
 from ._default_dicts import (
     ddb_global_attrs_default,
     ddb_local_attrs_default,
+    forcing_local_attrs_default,
+    forcing_global_attrs_default,
+    default_attrs,
 )
 from meshflow import utility
 
@@ -57,6 +60,8 @@ class MESHWorkflow(object):
         ds_main_id: str,
         forcing_units: Dict[str, str] = None,  # pint standards
         forcing_to_units: Dict[str, str] = None,
+        forcing_local_attrs: Dict[str, str] = None,
+        forcing_global_attrs: Dict[str, str] = None,
         outlet_value: int = -9999,
         riv_cols: Dict[str, Union[str, int]] = None,
         cat_cols: Dict[str, Union[str, int]] = None,
@@ -64,6 +69,8 @@ class MESHWorkflow(object):
         ddb_local_attrs: Dict[str, str] = None,
         ddb_global_attrs: Dict[str, str] = None,
         ddb_min_values: Dict[str, float] = None,
+        ddb_units: Dict[str, str] = None,
+        ddb_to_units: Dict[str, str] = None,
     ) -> None:
         """Main constructor of MESHWorkflow
         """
@@ -71,42 +78,69 @@ class MESHWorkflow(object):
         if not forcing_vars:
             raise ValueError("`forcing_vars` cannot be empty")
 
+        # ddb variables
+        if not ddb_vars:
+            raise ValueError("`ddb_vars` cannot be empty")
+
+        _dict_items = [forcing_units,
+                       forcing_to_units,
+                       ddb_units,
+                       ddb_to_units]
         # check dictionary dtypes
-        for item in [forcing_units, forcing_to_units]:
+        for item in _dict_items:
             if not isinstance(item, dict) and (item is not None):
                 raise TypeError(f"`{item}` must be of type dict")
 
-        # if ddb_local_attrs not assigned
+        # if `ddb_local_attrs` not assigned
         if not ddb_global_attrs:
             self.ddb_global_attrs = ddb_global_attrs_default
         else:
             self.ddb_global_attrs = ddb_global_attrs
 
-        # if ddb_local_attrs not assigned
+        # if `ddb_local_attrs` not assigned
         if not ddb_local_attrs:
             self.ddb_local_attrs = ddb_local_attrs_default
         else:
             self.ddb_local_attrs = ddb_local_attrs
 
-        # assigning variables to be "lazy loaded" later
+        # if `forcing_local_attrs` not assigned
+        if not forcing_local_attrs:
+            self.forcing_local_attrs = forcing_local_attrs_default
+        else:
+            self.forcing_local_attrs = forcing_local_attrs
+
+        # if `forcing_global_attrs` not assigned
+        if not forcing_global_attrs:
+            self.forcing_global_attrs = forcing_global_attrs_default
+        else:
+            self.forcing_global_attrs = forcing_global_attrs
+
+        # assigning variables to be "lazy loaded"
         self._riv_path = riv
         self._cat_path = cat
         self._landcover_path = landcover
 
-        # assgining forcing files path to be "lazy loaded" later
+        # assgining forcing files path to be "lazy loaded"
         self._forcing_path = forcing_files
 
         # assign inputs
+        # geofabric specs
         self.main_id = main_id
         self.ds_main_id = ds_main_id
-        self.forcing_vars = forcing_vars
-        self.forcing_units = forcing_units
-        self.forcing_to_units = forcing_to_units
         self.outlet_value = outlet_value
         self.riv_cols = riv_cols
         self.cat_cols = cat_cols
+
+        # forcing specs
+        self.forcing_vars = forcing_vars
+        self.forcing_units = forcing_units
+        self.forcing_to_units = forcing_to_units
+
+        # geofabric specs
         self.ddb_vars = ddb_vars
         self.ddb_min_values = ddb_min_values
+        self.ddb_units = ddb_units
+        self.ddb_to_units = ddb_to_units
 
         # assing inputs read from files
         self._read_input_files()
@@ -252,6 +286,7 @@ class MESHWorkflow(object):
         _rank_var = 'Rank'
         _next_var = 'Next'
         _gru_name = 'gru'
+        _hru_dim = 'subbasin'
 
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
@@ -271,7 +306,6 @@ class MESHWorkflow(object):
         self.ddb = utility.prepare_mesh_ddb(riv=self.reordered_riv,
                                             cat=self.cat,
                                             landcover=self.landcover,
-                                            coords=self.coords,
                                             cat_dim=self.main_id,
                                             gru_dim=_gru_name,
                                             include_vars=self.ddb_vars,
@@ -279,7 +313,9 @@ class MESHWorkflow(object):
                                             attr_global=self.ddb_global_attrs,
                                             min_values=self.ddb_min_values,
                                             fill_na=None,
-                                            ordered_dims=_ordered_dims)
+                                            ordered_dims=_ordered_dims,
+                                            ddb_units=self.ddb_units,
+                                            ddb_to_units=self.ddb_to_units)
 
         # forcing unit registry
         _ureg = pint.UnitRegistry(force_ndarray_like=True)
@@ -287,16 +323,28 @@ class MESHWorkflow(object):
 
         # 2 generate forcing data
         # making a list of variables
-        self.forcing = utility.forcing_prep.mesh_forcing(
+        self.forcing = utility.prepare_mesh_forcing(
                             path=self.forcing_files,
                             variables=self.forcing_vars,
                             units=self.forcing_units,
                             to_units=self.forcing_to_units,
-                            unit_registry=_ureg)
+                            unit_registry=_ureg,
+                            local_attrs=self.forcing_local_attrs,
+                            global_attrs=self.forcing_global_attrs)
+
+        # assigning coordinates to both `forcing` and `ddb` of an instance
+        self._coords_ds = utility.prepare_mesh_coords(self.coords,
+                                                      cat_dim=self.main_id,
+                                                      dim=_hru_dim)
+        # ad-hoc manipulations on the forcing and drainage database
+        self.forcing = self._adhoc_mesh_vars(self.forcing)
+        self.ddb = self._adhoc_mesh_vars(self.ddb)
 
         # 3 generate land-cover dependant setting files for MESH
+        # [FIXME]: incoming - for now simple copying
 
         # 4 generate other setting files for MESH
+        # [FIXME]: incoming - for now simple copying
 
         return
 
@@ -404,6 +452,25 @@ class MESHWorkflow(object):
         self.forcing.time.encoding = _encoding
 
         return
+
+    def _adhoc_mesh_vars(self, ds):
+        """
+        Ad-hoc manipulations on drainage database and forcing objects
+        including adding `crs` variables, adding coordinates, and adding
+        necessary default variable attributes
+        """
+        # fix coordinates of the forcing and ddb objects
+        ds = xr.combine_by_coords([ds, self._coords_ds])
+
+        # adding `crs` variable to both
+        ds['crs'] = 1
+
+        # adjust local attributes of common variables
+        for k in default_attrs:
+            for attr, desc in default_attrs[k].items():
+                ds[k].attrs[attr] = desc
+
+        return ds
 
     def _progress_bar():
         return

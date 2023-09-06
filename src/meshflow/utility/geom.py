@@ -5,6 +5,7 @@ such as Polygons, LineStrings, MultiPolygons, etc.
 
 import geopandas as gpd
 import pandas as pd
+import xarray as xr
 
 import warnings
 
@@ -35,8 +36,6 @@ def extract_centroid(
     pandas.DataFrame
         containing `lat` and `lon` columns for each element of `obj_id`
     """
-    geom_var = 'geometry'
-
     # if crs is missing
     if not gdf.crs:
         # set to epsg=4326
@@ -54,3 +53,22 @@ def extract_centroid(
     coords_df['lon'] = centroids_gdf.x
 
     return coords_df
+
+
+def prepare_mesh_coords(
+    coords: pd.DataFrame,
+    cat_dim: str,
+    dim: str,
+) -> xr.Dataset:
+    '''Implements necessary coords manipulations by:
+    1) setting the index to the catchment element
+       dimension variable `cat_dim`. For example, in
+       MERIT-Basins geospatial data, the `cat_dim`
+       refers to the ID of each element, i.e., COMID.
+    2) returning an xarray.Dataset object
+    '''
+
+    coords = coords.copy().set_index(cat_dim).to_xarray()
+    coords_ds = coords.rename({cat_dim: dim})
+
+    return coords_ds

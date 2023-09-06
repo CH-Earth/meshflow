@@ -16,12 +16,14 @@ from typing import (
 )
 
 
-def mesh_forcing(
+def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
     units: Dict[str, str],
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
+    local_attrs: Optional[Dict[str, str]] = None,
+    global_attrs: Optional[Dict[str, str]] = None,
 ) -> None:
     """Prepares a MESH forcing file.
 
@@ -38,8 +40,10 @@ def mesh_forcing(
     to_units : Dict[str, str], optional
         A dictionary mapping variable names to target units for conversion,
         by default None.
-    return_xarray : bool, optional
-        If True, return the resulting xarray.Dataset, by default False.
+    local_attrs: Dict[str, str], optional
+        A dictionary instructing local attributes for forcing variables
+    global_attrs: Dict[str, str], optional
+        A dictionary instructing global attributes for the forcing object
 
     Raises
     ------
@@ -111,12 +115,18 @@ def mesh_forcing(
     ds = ds.transpose().rename({k: 'subbasin' for k in var})
 
     # convert calendar to 'standard' based on MESH's input standard
-    ds = ds.convert_calendar(calendar='standard',
-                             dim='time',
-                             align_on=None)
+    ds = ds.convert_calendar(calendar='standard')
 
-    # adding CRS variable
-    ds['crs'] = 1
+    # assigning local attributes for each variable
+    if local_attrs:
+        for var, val in local_attrs.items():
+            for attr, desc in val.items():
+                ds[var].attrs[attr] = desc
+
+    # assigning global attributes for `ddb`
+    if global_attrs:
+        for attr, desc in global_attrs.items():
+            ds.attrs[attr] = desc
 
     return ds
 
