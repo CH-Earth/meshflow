@@ -58,7 +58,7 @@ def extract_centroid(
 def prepare_mesh_coords(
     coords: pd.DataFrame,
     cat_dim: str,
-    dim: str,
+    hru_dim: str,
 ) -> xr.Dataset:
     '''Implements necessary coords manipulations by:
     1) setting the index to the catchment element
@@ -67,8 +67,9 @@ def prepare_mesh_coords(
        refers to the ID of each element, i.e., COMID.
     2) returning an xarray.Dataset object
     '''
-
+    # create coords xr.Dataset
     coords = coords.copy().set_index(cat_dim).to_xarray()
-    coords_ds = coords.rename({cat_dim: dim})
+    # change dimension name
+    coords_ds = coords.rename({cat_dim: hru_dim})
 
     return coords_ds

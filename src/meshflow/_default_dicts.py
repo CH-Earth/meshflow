@@ -52,6 +52,9 @@ ddb_local_attrs_default = {
         'long_name': 'Group Response Unit',
         'coordinates': 'lon lat time'
     },
+    'LandUse': {
+        'standard_name': 'Landuse classification name',
+    },
 }
 
 
@@ -80,7 +83,7 @@ default_attrs = {
     },
     'crs': {
         'grid_mapping_name': 'latitude_longitude',
-        'longitude_of_prime_meridian': 0,
+        'longitude_of_prime_meridian': 0.,
         'semi_major_axis': 6378137.0,
         'inverse_flattening': 298.257223563,
     },

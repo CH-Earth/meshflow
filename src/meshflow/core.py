@@ -9,6 +9,7 @@ framework to the North American domain.
 """
 
 import pandas as pd
+import numpy as np
 import geopandas as gpd
 import xarray as xr
 import pint
@@ -58,7 +59,8 @@ class MESHWorkflow(object):
         forcing_vars: Sequence[str],
         main_id: str,
         ds_main_id: str,
-        forcing_units: Dict[str, str] = None,  # pint standards
+        landcover_classes: Dict[str, str] = None,
+        forcing_units: Dict[str, str] = None,
         forcing_to_units: Dict[str, str] = None,
         forcing_local_attrs: Dict[str, str] = None,
         forcing_global_attrs: Dict[str, str] = None,
@@ -86,6 +88,7 @@ class MESHWorkflow(object):
                        forcing_to_units,
                        ddb_units,
                        ddb_to_units]
+
         # check dictionary dtypes
         for item in _dict_items:
             if not isinstance(item, dict) and (item is not None):
@@ -115,9 +118,11 @@ class MESHWorkflow(object):
         else:
             self.forcing_global_attrs = forcing_global_attrs
 
-        # assigning variables to be "lazy loaded"
+        # assigning geofabric files to be "lazy loaded"
         self._riv_path = riv
         self._cat_path = cat
+
+        # assgining landcover files to be "lazy loaded"
         self._landcover_path = landcover
 
         # assgining forcing files path to be "lazy loaded"
@@ -136,14 +141,23 @@ class MESHWorkflow(object):
         self.forcing_units = forcing_units
         self.forcing_to_units = forcing_to_units
 
-        # geofabric specs
+        # drainage database specs
         self.ddb_vars = ddb_vars
         self.ddb_min_values = ddb_min_values
         self.ddb_units = ddb_units
         self.ddb_to_units = ddb_to_units
 
+        # landcover specs
+        self.landcover_classes = landcover_classes
+
         # assing inputs read from files
         self._read_input_files()
+
+        # core variable and dimension names
+        self.gru_dim = 'gru'
+        self.gru_var = self.gru_dim + '_var'
+        self.hru_dim = 'subbasin'
+        self.hru_var = self.hru_dim + '_var'
 
     def _read_input_files(self):
         """Read necessary input files
@@ -285,8 +299,6 @@ class MESHWorkflow(object):
         # MESH specific variable names in ddb
         _rank_var = 'Rank'
         _next_var = 'Next'
-        _gru_name = 'gru'
-        _hru_dim = 'subbasin'
 
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
@@ -307,7 +319,11 @@ class MESHWorkflow(object):
                                             cat=self.cat,
                                             landcover=self.landcover,
                                             cat_dim=self.main_id,
-                                            gru_dim=_gru_name,
+                                            gru_dim=self.gru_dim,
+                                            gru_var=self.gru_var,
+                                            hru_dim=self.hru_dim,
+                                            hru_var=self.hru_var,
+                                            gru_names=self.landcover_classes,
                                             include_vars=self.ddb_vars,
                                             attr_local=self.ddb_local_attrs,
                                             attr_global=self.ddb_global_attrs,
@@ -326,6 +342,8 @@ class MESHWorkflow(object):
         self.forcing = utility.prepare_mesh_forcing(
                             path=self.forcing_files,
                             variables=self.forcing_vars,
+                            hru_dim=self.hru_dim,
+                            hru_var=self.hru_var,
                             units=self.forcing_units,
                             to_units=self.forcing_to_units,
                             unit_registry=_ureg,
@@ -335,7 +353,7 @@ class MESHWorkflow(object):
         # assigning coordinates to both `forcing` and `ddb` of an instance
         self._coords_ds = utility.prepare_mesh_coords(self.coords,
                                                       cat_dim=self.main_id,
-                                                      dim=_hru_dim)
+                                                      hru_dim=self.hru_dim)
         # ad-hoc manipulations on the forcing and drainage database
         self.forcing = self._adhoc_mesh_vars(self.forcing)
         self.ddb = self._adhoc_mesh_vars(self.ddb)
@@ -460,7 +478,7 @@ class MESHWorkflow(object):
         necessary default variable attributes
         """
         # fix coordinates of the forcing and ddb objects
-        ds = xr.combine_by_coords([ds, self._coords_ds])
+        ds = xr.combine_by_coords([self._coords_ds, ds])
 
         # adding `crs` variable to both
         ds['crs'] = 1
@@ -469,6 +487,16 @@ class MESHWorkflow(object):
         for k in default_attrs:
             for attr, desc in default_attrs[k].items():
                 ds[k].attrs[attr] = desc
+
+        # downcast datatype of coordinate variables
+        for c in ds.coords:
+            if np.issubdtype(ds[c], float):
+                ds[c] = pd.to_numeric(ds[c].to_numpy(),
+                                      errors='ignore',
+                                      downcast='integer')
+
+        # assure the order of `self._hru_dim` is correct
+        ds = ds.loc[{self.hru_dim: self.main_seg}].copy()
 
         return ds
 

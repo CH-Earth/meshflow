@@ -19,6 +19,8 @@ from typing import (
 def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
+    hru_dim: str,
+    hru_var: str,
     units: Dict[str, str],
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
@@ -112,7 +114,7 @@ def prepare_mesh_forcing(
 
     # rename easymore's output name
     var = [i for i in ds.dims.keys() if i != 'time']
-    ds = ds.transpose().rename({k: 'subbasin' for k in var})
+    ds = ds.transpose().rename({k: hru_dim for k in var})
 
     # convert calendar to 'standard' based on MESH's input standard
     ds = ds.convert_calendar(calendar='standard')
@@ -125,6 +127,9 @@ def prepare_mesh_forcing(
 
     # assigning global attributes for `ddb`
     if global_attrs:
+        # empty global attribute dictionary first
+        ds.attrs = {}
+        # assign new global attributes
         for attr, desc in global_attrs.items():
             ds.attrs[attr] = desc
 

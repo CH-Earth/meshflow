@@ -10,6 +10,7 @@ import geopandas as gpd
 from hydrant.topology import river_graph
 
 from typing import (
+    Sequence,
     Iterable,
     Tuple,
     Dict,
@@ -301,14 +302,14 @@ def _fill_na_ds(
 def _prepare_geodataframe_mesh(
     geodf: gpd.GeoDataFrame,
     cat_dim: str,
-    geometry_dim: str ='geometry',
+    geometry_dim: str = 'geometry',
 ) -> xr.Dataset:
     '''Implements necessary geodf manipulations by:
-    1) removing the `geometry_dim` column of the 
+    1) removing the `geometry_dim` column of the
        geopandas.GeoDataFrame object and turning it
        into a pandas.DataFrame automatically
     2) setting index of the new DataFrame to the
-       `cat_dim` indicating IDs for each element of 
+       `cat_dim` indicating IDs for each element of
        `geodf`
     3) returning an xarray.Dataset
     '''
@@ -324,6 +325,10 @@ def prepare_mesh_ddb(
     landcover: pd.DataFrame,
     cat_dim: str,
     gru_dim: str,
+    gru_var: str,
+    hru_dim: str,
+    hru_var: str,
+    gru_names: Sequence[str],
     include_vars: Dict[str, str],
     attr_local: Dict[str, Dict[str, str]],
     attr_global: Dict[str, str],
@@ -394,8 +399,12 @@ def prepare_mesh_ddb(
     # define necessary variables
     geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
     landcover_var = 'landcover'  # landcover variable name in the object
+
     dummy_col = 9999  # MESH's dummy landcover class dimension/column name
     dummy_col_value = 0  # MESH's dummy landcover class value
+
+    # extract order of `cat_dim`
+    cat_dim_array = riv.loc[:, cat_dim].copy().to_numpy()
 
     # check `riv` and `cat` dtypes
     riv = _check_geo_obj_dtype(riv)
@@ -421,10 +430,32 @@ def prepare_mesh_ddb(
                                            dummy_col_name=dummy_col,
                                            dummy_col_value=dummy_col_value)
 
+    # add landcover classes names present in the setup to `ddb`
+    # note that the last landcover class/name is a dummy one
+    _gru_list = landcover_ds[gru_dim].to_numpy()
+    # creating dictionary for final merging
+    lc_names = {
+        "coords": {
+            gru_dim: {
+                "dims": gru_dim,
+                "data": _gru_list,
+            },
+        },
+        "dims": gru_dim,
+        "data_vars": {
+            "landcover_names": {
+                "dims": gru_dim,
+                "data": [gru_names[c] for c in _gru_list[0:-1]] + ['Dump']
+            },
+        },
+    }
+    lc_names_da = xr.Dataset.from_dict(lc_names)
+
     # making a list of all xarray.Dataset objects
-    ds_list = [riv_ds,
-               cat_ds,
-               landcover_ds]
+    ds_list = [landcover_ds,
+               lc_names_da,
+               riv_ds,
+               cat_ds]
 
     # merging all xarray objects into one
     ddb = xr.combine_by_coords(ds_list, compat='override')
@@ -433,6 +464,27 @@ def prepare_mesh_ddb(
     # based on the _values_ (NOT KEYS) of the dictionary
     ddb = ddb.rename_vars(name_dict=include_vars)
     ddb = ddb[list(include_vars.values())]
+
+    # fill NA values for `ddb`
+    if fill_na is not None:
+        ddb = _fill_na_ds(ds=ddb,
+                          na_values=fill_na)
+
+    # assinging minimum values for `ddb`
+    if min_values is not None:
+        ddb = _set_min_values(ds=ddb,
+                              min_values=min_values)
+
+    # assigning local attributes for each variable
+    if attr_local:
+        for var, val in attr_local.items():
+            for attr, desc in val.items():
+                ddb[var].attrs[attr] = desc
+
+    # assigning global attributes for `ddb`
+    if attr_global:
+        for attr, desc in attr_global.items():
+            ddb.attrs[attr] = desc
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence
@@ -457,36 +509,22 @@ def prepare_mesh_ddb(
     # print the netCDF file
     ddb = ddb.pint.dequantify()
 
-    # fill NA values for `ddb`
-    if fill_na is not None:
-        ddb = _fill_na_ds(ds=ddb,
-                          na_values=fill_na)
-
-    # assinging minimum values for `ddb`
-    if min_values is not None:
-        ddb = _set_min_values(ds=ddb,
-                              min_values=min_values)
-
     # sort dimensions of `ddb`
     if ordered_dims is not None:
         ddb = ddb.reindex(indexers=ordered_dims,
                           copy=True)
 
-    # assigning local attributes for each variable
-    if attr_local:
-        for var, val in attr_local.items():
-            for attr, desc in val.items():
-                ddb[var].attrs[attr] = desc
-
-    # assigning global attributes for `ddb`
-    if attr_global:
-        for attr, desc in attr_global.items():
-            ddb.attrs[attr] = desc
-
     # rename ddb dimension
-    ddb = ddb.rename({cat_dim: 'subbasin'})
+    ddb = ddb.rename({cat_dim: hru_dim})
 
     # change the value of `gru` dimension
-    ddb['gru'] = range(0, len(ddb['gru']))
+    ddb[gru_dim] = range(0, len(ddb[gru_dim]))
+
+    # assure the order of `hru_dim` is correct
+    ddb = ddb.loc[{hru_dim: cat_dim_array}].copy()
+
+    # rename coordinate variable names to avoid confusion with dimension
+    # names
+    ddb = ddb.drop_vars(gru_dim) 
 
     return ddb
