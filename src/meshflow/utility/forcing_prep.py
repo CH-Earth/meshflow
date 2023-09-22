@@ -1,10 +1,14 @@
+"""
+Containing important functions for preparing "forcing" database for MESH
+models
+"""
+
 
 import cdo  # binary required >2.2.1
 import xarray as xr  # requires xarray >2023.7.0
 import pint_xarray  # requires typing_extensions >4.7.1
 import pint  # pint >0.22
 
-import os
 from typing import (
     Sequence,
     Dict,
@@ -12,12 +16,16 @@ from typing import (
 )
 
 
-def mesh_forcing(
+def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
+    hru_dim: str,
+    hru_var: str,
     units: Dict[str, str],
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
+    local_attrs: Optional[Dict[str, str]] = None,
+    global_attrs: Optional[Dict[str, str]] = None,
 ) -> None:
     """Prepares a MESH forcing file.
 
@@ -34,8 +42,10 @@ def mesh_forcing(
     to_units : Dict[str, str], optional
         A dictionary mapping variable names to target units for conversion,
         by default None.
-    return_xarray : bool, optional
-        If True, return the resulting xarray.Dataset, by default False.
+    local_attrs: Dict[str, str], optional
+        A dictionary instructing local attributes for forcing variables
+    global_attrs: Dict[str, str], optional
+        A dictionary instructing global attributes for the forcing object
 
     Raises
     ------
@@ -81,8 +91,8 @@ def mesh_forcing(
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence
-    for k, _ in units.items():
-        if k not in ds.keys():
+    for k in units:
+        if k not in ds:
             raise ValueError(f"item {k} defined in `units` cannot be found"
                              " in `variables`")
 
@@ -104,6 +114,58 @@ def mesh_forcing(
 
     # rename easymore's output name
     var = [i for i in ds.dims.keys() if i != 'time']
-    ds = ds.transpose().rename({k: 'subbasin' for k in var})
+    ds = ds.transpose().rename({k: hru_dim for k in var})
+
+    # convert calendar to 'standard' based on MESH's input standard
+    ds = ds.convert_calendar(calendar='standard')
+
+    # assigning local attributes for each variable
+    if local_attrs:
+        for var, val in local_attrs.items():
+            for attr, desc in val.items():
+                ds[var].attrs[attr] = desc
+
+    # assigning global attributes for `ddb`
+    if global_attrs:
+        # empty global attribute dictionary first
+        ds.attrs = {}
+        # assign new global attributes
+        for attr, desc in global_attrs.items():
+            ds.attrs[attr] = desc
 
     return ds
+
+
+def freq_long_name(
+    freq_alias: 'str'
+) -> str:
+    """returning fullname of a offset alias based on pandas conventions
+
+    Paramters
+    ---------
+    freq_alias: str
+        Time offset alias which is usually a single character to represent
+        time interval frequencies, such as 'H' for 'hours'
+
+    Returns
+    -------
+    str
+        fullname of the time offset
+    """
+
+    if not isinstance(freq_alias, str):
+        raise TypeError(f"frequency value of \'{freq_alias}\' is not"
+                        "acceptable")
+
+    if freq_alias in ('H'):
+        return 'hours'
+    elif freq_alias in ('T', 'min'):
+        return 'minutes'
+    elif freq_alias in ('S'):
+        return 'seconds'
+    elif freq_alias in ('L', 'ms'):
+        return 'milliseconds'
+    else:
+        raise ValueError(f"frequency value \'{freq_alias}\' is not"
+                         "acceptable")
+    return
