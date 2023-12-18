@@ -73,6 +73,8 @@ class MESHWorkflow(object):
         ddb_min_values: Dict[str, float] = None,
         ddb_units: Dict[str, str] = None,
         ddb_to_units: Dict[str, str] = None,
+        gru_dim: str = 'gru',
+        hru_dim: str = 'subbasin',
     ) -> None:
         """Main constructor of MESHWorkflow
         """
@@ -154,9 +156,9 @@ class MESHWorkflow(object):
         self._read_input_files()
 
         # core variable and dimension names
-        self.gru_dim = 'gru'
+        self.gru_dim = gru_dim
         self.gru_var = self.gru_dim + '_var'
-        self.hru_dim = 'subbasin'
+        self.hru_dim = hru_dim
         self.hru_var = self.hru_dim + '_var'
 
     def _read_input_files(self):
