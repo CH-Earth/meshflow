@@ -20,10 +20,14 @@ from typing import (
     Union,
 )
 
+# built-in libraries
 import re
 import json
+import sys
 import glob
 import os
+import shutil
+import warnings
 
 from ._default_dicts import (
     ddb_global_attrs_default,
@@ -373,9 +377,12 @@ class MESHWorkflow(object):
 
         Parameters
         ----------
+        output_dir : str
+          path where the set up model will be saved.
 
         Returns
         -------
+        None
         """
         # MESH specific variable names
         ddb_file = 'MESH_drainage_database.nc'
@@ -390,6 +397,19 @@ class MESHWorkflow(object):
         self.forcing.to_netcdf(os.path.join(output_dir, forcing_file),
                                format='NETCDF4_CLASSIC',
                                unlimited_dims=['time'])
+        # copy crude setting files with a warning
+        warnings.warn(
+            "MESH settings need manual adjustments. Automation" +
+            " is a work in progress...",
+            UserWarning,
+        )
+        pkgdir = sys.modules['meshflow'].__path__[0]
+        setting_path = os.path.join(pkgdir, 'default_settings')
+        for f in glob.glob(os.path.join(setting_path, '*')):
+            if os.path.isfile(f):
+                shutil.copy2(f, output_dir)
+        os.makedirs(os.path.join(setting_path, 'results'),
+                   exist_ok=True)
 
         return
 

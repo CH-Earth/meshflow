@@ -185,3 +185,6 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.setuptools.package-data]
+demo_package = ["src/meshflow/default_settings/*"]
