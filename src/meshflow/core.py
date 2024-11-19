@@ -408,7 +408,7 @@ class MESHWorkflow(object):
         for f in glob.glob(os.path.join(setting_path, '*')):
             if os.path.isfile(f):
                 shutil.copy2(f, output_dir)
-        os.makedirs(os.path.join(setting_path, 'results'),
+        os.makedirs(os.path.join(output_dir, 'results'),
                    exist_ok=True)
 
         return
