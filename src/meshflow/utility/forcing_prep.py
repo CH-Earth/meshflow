@@ -157,7 +157,7 @@ def freq_long_name(
         raise TypeError(f"frequency value of \'{freq_alias}\' is not"
                         "acceptable")
 
-    if freq_alias in ('H'):
+    if freq_alias in ('H', 'h'):
         return 'hours'
     elif freq_alias in ('T', 'min'):
         return 'minutes'
