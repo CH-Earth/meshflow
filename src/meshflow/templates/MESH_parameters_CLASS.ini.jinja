@@ -1,0 +1,12 @@
+{% macro calculate_spacing(val, column, indent) %}
+    {{- " " * (column - val | length - indent - 1) -}}
+{% endmacro %}
+{% set indent = 2 %}
+{% set column = 75 %}
+{% for k in info_block.get(variables).keys() -%}
+  {%- set val = info_block.get(variables).get(k) %}
+  {%- set comment = info_block.get(comments).get(k) %}
+  {{ val }}{{ calculate_spacing(val, column, indent) }}{{ comment }}
+{% endfor %}
+{# {% for k in case_block.get(variables).keys() -%}
+  {%- set  #}
