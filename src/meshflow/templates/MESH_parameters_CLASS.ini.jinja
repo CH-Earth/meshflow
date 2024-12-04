@@ -1,12 +1,89 @@
-{% macro calculate_spacing(val, column, indent) %}
-    {{- " " * (column - val | length - indent - 1) -}}
-{% endmacro %}
+{#
+    useful assumptions
+    ------------------
+#}
 {% set indent = 2 %}
-{% set column = 75 %}
+{% set comment_col = 78 %}
+{#
+    useful macros
+    -------------
+#}
+{% macro calculate_padding(column, cursor) %}
+    {# move cursor to column number in the text file #}
+    {{- " " * (column - cursor - 1) -}}
+{% endmacro %}
+{% macro format_float(value, decimals) %}
+    {# define number of decimals for float values #}
+    {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
+{#
+    CLASS file definitons 
+    ---------------------
+    the info block:
+    ===============
+    containing three lines displaying the CLASS test case name, user's name,
+    and affiliation.
+
+    reference:
+    - https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini
+#}
+{% set cursor = namespace(position_info=0) %}
 {% for k in info_block.get(variables).keys() -%}
-  {%- set val = info_block.get(variables).get(k) %}
-  {%- set comment = info_block.get(comments).get(k) %}
-  {{ val }}{{ calculate_spacing(val, column, indent) }}{{ comment }}
+    {# necessary dictionaries #}
+    {% set comment = info_block.get(comments).get(k) %}
+    {% set val = info_block.get(variables).get(k) %}
+    {% set format = info_block.get(formats).get(k) %}
+    {% set col = info_block.get(columns).get(k) %}
+    {# building the block #}
+    {%- set padding = calculate_padding(col, cursor.position_info) -%}
+    {# print the output #}
+    {{- padding }}{{ val -}}
+    {# move the cursor #}
+    {% set cursor.position_info = cursor.position_info + (padding | length) + (val | length) -%}
+    {# write the comment #}
+    {%- set comment_padding = calculate_padding(comment_col, cursor.position_info) -%}
+    {{- comment_padding }}{{ comment }}
+    {# reset cursor #}
+    {% set cursor.position_info = 0 %}
 {% endfor %}
-{# {% for k in case_block.get(variables).keys() -%}
-  {%- set  #}
+{#
+    the case block:
+    ===============
+    containing 1 line of information on the main assumption about the assumed
+    height of forcing variable, centroid coordinates of the study area, etc.
+
+    reference:
+    - https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini
+#}
+{% set cursor = namespace(position=0) %}
+{% for k in case_block.get(variables).keys() -%}
+    {# needed dictionaries #}
+    {% set comment = case_block.get(comments).get(k) %}
+    {% set vars_dict = case_block.get(variables).get(k) %}
+    {% set format_dict = case_block.get(formats).get(k) %}
+    {% set column_dict = case_block.get(columns).get(k) %}
+    {# building the block #}
+    {# second level of keys within `vars_dict' #}
+    {%- for kk in vars_dict.keys() -%}
+        {# all values are float, hence reformatting #}
+        {%- set val = format_float(vars_dict.get(kk), format_dict.get(kk)) -%}
+        {%- set col = column_dict.get(kk) -%}
+        {%- set padding = calculate_padding(col, cursor.position) -%}
+        {# print value #}
+        {{- padding }}{{ val -}}
+        {# {{ padding | length }} #}
+        {# update cursor #}
+        {% set cursor.position = cursor.position + (padding | length) + (val | length) %}
+    {%- endfor -%}
+    {# adding comment padding #}
+    {%- set comment_padding = calculate_padding(comment_col, cursor.position) -%}
+  {{- comment_padding }}{{ comment }}
+{% endfor -%}
+{#
+    the GRU block(s):
+    =================
+#}
+{#
+    the date block:
+    ===============
+#}
