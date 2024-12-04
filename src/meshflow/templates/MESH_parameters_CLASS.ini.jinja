@@ -83,7 +83,29 @@
     the GRU block(s):
     =================
 #}
+{% set cursor = namespace(position_gru=0) %}
+{% for k in info_block.get(variables).keys() -%}
+    {# necessary dictionaries #}
+    {% set comment = info_block.get(comments).get(k) %}
+    {% set val = info_block.get(variables).get(k) %}
+    {% set format = info_block.get(formats).get(k) %}
+    {% set col = info_block.get(columns).get(k) %}
+    {# building the block #}
+    {%- set padding = calculate_padding(col, cursor.position_info) -%}
+    {# print the output #}
+    {{- padding }}{{ val -}}
+    {# move the cursor #}
+    {% set cursor.position_info = cursor.position_info + (padding | length) + (val | length) -%}
+    {# write the comment #}
+    {%- set comment_padding = calculate_padding(comment_col, cursor.position_info) -%}
+    {{- comment_padding }}{{ comment }}
+    {# reset cursor #}
+    {% set cursor.position_info = 0 %}
+{% endfor %}
 {#
     the date block:
     ===============
 #}
+   0       0       0       0                                                 20 (not used, but 4x integer values are required)
+   0       0       0       0                                                 21 (not used, but 4x integer values are required)
+   0       0       0       0                                                 22 IHOUR/IMINS/IJDAY/IYEAR
