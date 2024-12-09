@@ -1,0 +1,38 @@
+{#
+    useful macros
+    =============
+#}
+{% macro calculate_padding(column, cursor) %}
+    {# move cursor to column number in the text file #}
+    {{- " " * (column - cursor - 1) -}}
+{% endmacro %}
+{% macro format_float(value, decimals) %}
+    {# define number of decimals for float values #}
+    {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
+{% macro calculate_padding_end(column, val, cursor) %}
+    {# define the padding given the column the `val' s length #}
+    {{- " " * (column - (val | string | length) - cursor - 1) -}}
+{% endmacro %}
+2.0: MESH Hydrology parameters input file (Version 2.0)
+##### Option Flags #####
+----#
+    0                                                       # Number of option flags
+##### Channel routing parameters per river class #####
+-------#
+4                                                           # Number of channel routing parameters
+R2N            _R2N     _R2N     _R2N     _R2N     _R2N     # only used with new routing
+R1N            _R1N     _R1N     _R1N     _R1N     _R1N     # only used with new routing
+PWR            _PWR     _PWR     _PWR     _PWR     _PWR     # only used with BASEFLOWFLAG wf_lzs
+FLZ            _FLZ     _FLZ     _FLZ     _FLZ     _FLZ     # only used with BASEFLOWFLAG wf_lzs
+##### GRU class independent hydrologic parameters #####     # 10comment line 13                                                           | *
+-------#                                                    # 11comment line 14                                                           | *
+       0                                                    # Number of GRU independent hydrologic parameters
+##### GRU class dependent hydrologic parameters #####       # 18comment line 16                                                           | *
+-------#                                                    # 19comment line 17                                                           | *
+       4                                                    # 21Number of GRU dependent hydrologic parameters                             | I8
+!      NLForest(1)  NLForest(2)  Shrublandsub(8) Grasslandsub(10)  GLichenmoss(12)  Wetland(14)   Barrenland(16)  Water(18)
+ZSNL   _1ZSNL       _2ZSNL       0.065           _10ZSNL           0.057            0.083         0.489           _18ZSNL
+ZPLS   _1ZPLS       _2ZPLS       0.092           _10ZPLS           0.021            0.090         0.141           _18ZPLS
+ZPLG   _1ZPLG       _2ZPLG       0.205           _10ZPLG           0.020            0.260         0.062           _18ZPLG
+IWF    1            1            1                1                1                1             1               1
