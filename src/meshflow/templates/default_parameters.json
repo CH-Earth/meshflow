@@ -1,92 +1,161 @@
 {
-    "veg": {
-        "class": "",
-        "line5": {
-            "fcan": 1,
-            "lamx": 1.45
+    "class_defaults": {
+        "veg": {
+            "class": "",
+            "line5": {
+                "fcan": 1,
+                "lamx": 1.45
+            },
+            "line6": {
+                "lnz0": -1.3,
+                "lamn": 1.2
+            },
+            "line7": {
+                "alvc": 0.045,
+                "cmas": 4.5
+            },
+            "line8": {
+                "alic": 0.16,
+                "root": 1.09
+            },
+            "line9": {
+                "rsmn": 145,
+                "qa50": 36
+            },
+            "line10": {
+                "vpda": 0.8,
+                "vpdb": 1.05
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
         },
-        "line6": {
-            "lnz0": -1.3,
-            "lamn": 1.2
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 2.5,
+                "fare": 1,
+                "dd": 50
+            },
+            "line13": {
+                "xslp": 0.03,
+                "xdrainh": 0.35,
+                "mann": 0.1,
+                "ksat": 0.05,
+                "mid": "1 random landcover"
+            }
         },
-        "line7": {
-            "alvc": 0.045,
-            "cmas": 4.5
+        "soil": {
+            "line14": {
+                "sand1": 0.5,
+                "sand2": 0.5,
+                "sand3": 0.5
+            },
+            "line15": {
+                "clay1": 0.2,
+                "clay2": 0.2,
+                "clay3": 0.2
+            },
+            "line16": {
+                "orgm1": 0,
+                "orgm2": 0,
+                "orgm3": 0
+            }
         },
-        "line8": {
-            "alic": 0.16,
-            "root": 1.09
-        },
-        "line9": {
-            "rsmn": 145,
-            "qa50": 36
-        },
-        "line10": {
-            "vpda": 0.8,
-            "vpdb": 1.05
-        },
-        "line11": {
-            "psga": 100,
-            "psgb": 5
+        "prog": {
+            "line17": {
+                "tbar1": 4,
+                "tbar2": 2,
+                "tbar3": 1,
+                "tcan": 2,
+                "tsno": 0,
+                "tpnd": 4
+            },
+            "line18": {
+                "thlq1": 0.25,
+                "thlq2": 0.15,
+                "thlq3": 0.04,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0,
+                "rhos": 0,
+                "gro": 1
+            }
         }
     },
-    "hyd": {
-        "line12": {
-            "drn": 1,
-            "sdep": 2.5,
-            "fare": 1,
-            "dd": 50
+    "formats": {
+        "veg": {
+            "line5": 3,
+            "line6": 3,
+            "line7": 3,
+            "line8": 3,
+            "line9": 3,
+            "line10": 3,
+            "line11": 3
         },
-        "line13": {
-            "xslp": 0.03,
-            "xdrainh": 0.35,
-            "mann": 0.1,
-            "ksat": 0.05,
-            "mid": "1 random landcover"
+        "hyd": { 
+            "line12": 3,
+            "line13": 3
+        },
+        "soil": {
+            "line14": 3,
+            "line15": 3,
+            "line16": 3
+        },
+        "prog": {
+            "line17": 3,
+            "line18": 3,
+            "line19": 3
         }
     },
-    "soil": {
-        "line14": {
-            "sand1": 0.5,
-            "sand2": 0.5,
-            "sand3": 0.5
-        },
-        "line15": {
-            "clay1": 0.2,
-            "clay2": 0.2,
-            "clay3": 0.2
-        },
-        "line16": {
-            "orgm1": 0,
-            "orgm2": 0,
-            "orgm3": 0
-        }
+    "comments": {
+            "line5": "05 5xFCAN/4xLAMX",
+            "line6": "06 5xLNZ0/4xLAMN",
+            "line7": "07 5xALVC/4xCMAS",
+            "line8": "08 5xALIC/4xROOT",
+            "line9": "09 4xRSMN/4xQA50",
+            "line10": "10 4xVPDA/4xVPDB",
+            "line11": "11 4xPSGA/4xPSGB",
+            "line12": "12 DRN/SDEP/FARE/DD",
+            "line13": "13 XSLP/XDRAINH/MANN/KSAT/MID",
+            "line14": "14 3xSAND (or more)",
+            "line15": "15 3xCLAY (or more)",
+            "line16": "16 3xORGM (or more)",
+            "line17": "17 3xTBAR (or more)/TCAN/TSNO/TPND",
+            "line18": "18 3xTHLQ (or more)/3xTHIC (or more)/ZPND",
+            "line19": "19 RCAN/SCAN/SNO/ALBS/RHOS/GRO"
     },
-    "prog": {
-        "line17": {
-            "tbar1": 4,
-            "tbar2": 2,
-            "tbar3": 1,
-            "tcan": 2,
-            "tsno": 0,
-            "tpnd": 4
+    "columns": {
+        "veg": {
+            "line5": 78,
+            "line6": 78,
+            "line7": 78,
+            "line8": 78,
+            "line9": 78,
+            "line10": 78,
+            "line11": 78
         },
-        "line18": {
-            "thlq1": 0.25,
-            "thlq2": 0.15,
-            "thlq3": 0.04,
-            "thic1": 0,
-            "thic2": 0,
-            "thic3": 0,
-            "zpnd": 0
+        "hyd": {
+            "line12": 78,
+            "line13": 78
         },
-        "line19": {
-            "rcan": 0,
-            "scan": 0,
-            "sno": 0,
-            "albs": 0,
-            "rhos": 0,
-            "gro": 1
+        "soil": {
+            "line14": 78,
+            "line15": 78,
+            "line16": 78
+        },
+        "prog": {
+            "line17": 78,
+            "line18": 78,
+            "line19": 78
         }
     }
 }
