@@ -15,23 +15,65 @@
     {{- " " * (column - (val | string | length) - cursor - 1) -}}
 {% endmacro %}
 2.0: MESH Hydrology parameters input file (Version 2.0)
-##### Option Flags #####
-----#
-    0                                                       # Number of option flags
-##### Channel routing parameters per river class #####
--------#
-4                                                           # Number of channel routing parameters
-R2N            _R2N     _R2N     _R2N     _R2N     _R2N     # only used with new routing
-R1N            _R1N     _R1N     _R1N     _R1N     _R1N     # only used with new routing
-PWR            _PWR     _PWR     _PWR     _PWR     _PWR     # only used with BASEFLOWFLAG wf_lzs
-FLZ            _FLZ     _FLZ     _FLZ     _FLZ     _FLZ     # only used with BASEFLOWFLAG wf_lzs
-##### GRU class independent hydrologic parameters #####     # 10comment line 13                                                           | *
--------#                                                    # 11comment line 14                                                           | *
-       0                                                    # Number of GRU independent hydrologic parameters
-##### GRU class dependent hydrologic parameters #####       # 18comment line 16                                                           | *
--------#                                                    # 19comment line 17                                                           | *
-       4                                                    # 21Number of GRU dependent hydrologic parameters                             | I8
-!      NLForest(1)  NLForest(2)  Shrublandsub(8) Grasslandsub(10)  GLichenmoss(12)  Wetland(14)   Barrenland(16)  Water(18)
+{{ "##### Option Flags #####" }}
+{{ "----#" }}
+{{ "    0                                                       # Number of option flags" }}
+{{ "##### Channel routing parameters per river class #####" }}
+{{ "-------#" }}
+{{ "4                                                           # Number of channel routing parameters" }}
+{# `routing_dict' is really a list of dicts #}
+{# list the values for `r2n', `r1n', `pwr', and `flz' #}
+{%- set index = namespace(routing=0) -%}
+{%- set cursor = namespace(hydrology=0) -%}
+{# order of values #}
+{%- set param_order = ["R2N", "R1N", "PWR", "FLZ"] -%}
+{# iterate over each parameter and column of data provided #}
+{% for param in param_order %}
+    {# reset the name printing check variable #}
+    {%- set index = namespace(routing=0) -%}
+    {%- for routing_column in routing_dict -%}
+        {# define a list of these parameters #}
+        {%- set param_dict = {
+            "R2N": format_float(routing_column.get("r2n"), 3),
+            "R1N": format_float(routing_column.get("r1n"), 3),
+            "PWR": format_float(routing_column.get("pwr"), 3),
+            "FLZ": format_float(routing_column.get("flz"), 3)
+            }
+        -%}
+        {# define simple padding #}
+        {%- set padding = " " * 4 -%}
+        {# write values #}
+        {%- set param_val = param_dict.get(param) -%}
+        {# print values #}
+        {%- if index.routing == 0 -%}
+            {# print values #}
+            {{- param -}}{{- padding }}{{ param_val -}}
+            {# make sure variable name is printed only once #}
+            {%- set index.routing = 1 -%}
+            {# update cursor position #}
+            {%- set cursor.hydrology = (param | length) + (padding | length) + (param_val | string | length) -%}
+        {%- else -%}
+            {# only print padding and param_val if variable name is already
+               written
+            #}
+            {{- padding }}{{ param_val -}}
+            {# update cursor position #}
+            {%- set cursor.hydrology = cursor.hydrology + (padding | length) + (param_val | string | length) -%}
+        {% endif %}
+    {%- endfor -%}
+    {# assing a comment #}
+    {%- set comment = "# comment for line" -%}
+    {# determine comment padding #}
+    {%- set comment_padding = calculate_padding(61, cursor.hydrology) -%}
+    {{- comment_padding }}{{ comment }}
+{% endfor %}
+{{ "##### GRU class independent hydrologic parameters #####     # 10comment line 13                                                           | *" }}
+{{ "-------#                                                    # 11comment line 14                                                           | *" }}
+{{ "       0                                                    # Number of GRU independent hydrologic parameters" }}
+{{ "##### GRU class dependent hydrologic parameters #####       # 18comment line 16                                                           | *" }}
+{{ "-------#                                                    # 19comment line 17                                                           | *" }}
+{{ "       4                                                    # 21Number of GRU dependent hydrologic parameters                             | I8" }}
+{{ "!      NLForest(1)  NLForest(2)  Shrublandsub(8) Grasslandsub(10)  GLichenmoss(12)  Wetland(14)   Barrenland(16)  Water(18)" }}
 ZSNL   _1ZSNL       _2ZSNL       0.065           _10ZSNL           0.057            0.083         0.489           _18ZSNL
 ZPLS   _1ZPLS       _2ZPLS       0.092           _10ZPLS           0.021            0.090         0.141           _18ZPLS
 ZPLG   _1ZPLG       _2ZPLG       0.205           _10ZPLG           0.020            0.260         0.062           _18ZPLG
