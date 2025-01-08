@@ -1,0 +1,194 @@
+{#
+    useful assumptions
+    ==================
+#}
+{% set indent = 0 %}
+{% set comment_col = options_dict['columns']['comments'] %}
+{% set data_col = options_dict['columns']['data'] %}
+{#
+    useful macros
+    =============
+#}
+{% macro calculate_padding(column, cursor) %}
+    {# move cursor to column number in the text file #}
+    {{- " " * (column - cursor - 1) -}}
+{% endmacro %}
+{% macro format_float(value, decimals) %}
+    {# define number of decimals for float values #}
+    {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
+{% macro calculate_padding_end(column, val, cursor) %}
+    {# define the padding given the column the `val' s length #}
+    {{- " " * (column - (val | string | length) - cursor - 1) -}}
+{% endmacro %}
+{#
+    Run options file defintions
+    ===========================
+    This template file describes the options and flags needed to run MESH.
+    
+    Run flags
+    ---------
+    The key to the main dictionary for this section is "settings.flags".
+    
+    This sub-block of the file describes the main settings that describe MESH
+    functionalities, The block is separated into three sub-blocks:
+      1) forcing flags ("forcing",)
+      2) class flags ("class",) and
+      3) and other common flags ("etc")
+
+    Only the "class" flags are accompanied with comments, the rest are
+    printed without any comments.
+    
+    Before any flags are printed, the total number of flags must be specified
+    and printed.
+
+    output options
+    --------------
+    Two main output directories (local to where the model is run) are described.
+
+    The first directory is the outputs of CLASS and the second is the outputs of
+    MESH. The key to the main dictionary for this section is "settings.outputs".
+    
+    The directories are given with the following keys in the input
+    dictionary to this Jinja templating file:
+      1) "class" -> the output directory name of the CLASS outputs, and
+      2) "result" -> the output directory name of the MESH outputs.
+
+    date options
+    ------------
+    The key to the main dictionary for this section is "settings.dates".
+
+    This sub-block specifies the start date and end dates for its duration
+    MESH is run for.
+#}
+{{ "MESH input run options file                             # comment line 1                                | * " }}
+{{ "##### Control Flags #####                               # comment line 2                                | * " }}
+{{ "----#                                                   # comment line 3                                | * " }}
+{# First, the total number of options are specified #}
+{% set total_elements = namespace(flags=0) %}
+{% for key, sub_dict in options_dict['settings']['flags'].items() %}
+    {% if sub_dict is mapping %}
+        {% set total_elements.flags = total_elements.flags + sub_dict | length %}
+    {% endif %}
+{% endfor %}
+{# Since the formatting of flag number is I5, proper indentation is required #}
+{% set flags_no_length = total_elements.flags | string | length %}
+{% set flags_no_col = 5 - flags_no_length %}
+{% set flags_no_padding = calculate_padding(flags_no_col + 1, 0) %}
+{% set flags_no_comment_padding = calculate_padding(comment_col, 5) %}
+{% set flags_no_comment = "# Number of control flags                       | I5" %}
+{# printing total number of flags information #}
+{{- flags_no_padding }}{{ total_elements.flags }}{{ flags_no_comment_padding }}{{ flags_no_comment }}
+{# 
+    Printing flags:
+
+    forcing
+    ~~~~~~~
+#}
+{% set result = namespace(basin_forcing_flag='') %}
+{% set forcing_dict = options_dict['settings']['flags']['forcing'] %}
+{% for key, val in forcing_dict.items() %}
+    {# calculate length of the key and padding needed for the value #}
+    {% set forcing_val_padding = calculate_padding(data_col, key | length + 1) %}
+    {% if val is mapping %}
+        {% set result.basin_forcing_flag = '' %}
+        {% for k, v in val.items() %}
+            {% set result.basin_forcing_flag = result.basin_forcing_flag + k | string + '=' + v | string %}
+            {% if not loop.last %}
+                {% set result.basin_forcing_flag = result.basin_forcing_flag + ' ' %}
+            {% endif %}
+        {% endfor -%}
+        {{- key }}{{ forcing_val_padding }}{{ result.basin_forcing_flag }}
+    {% else %}
+        {{- key }}{{ forcing_val_padding }}{{ val }}
+    {% endif %}
+{% endfor %}
+{#
+    class
+    ~~~~~
+#}
+{% set cursor = namespace(class=0) %}
+{% set class_dict = options_dict['settings']['flags']['class'] %}
+{% set class_comments_dict = options_dict['comments']['flags']['class'] %}
+{% for key, val in class_dict.items() %}
+    {# calculate length of the key and padding needed for the value #}
+    {% set class_val_padding = calculate_padding(data_col, key | length + 1) %}
+    {# see where the cursor is after printing data #}
+    {% set cursor.class = key | length + class_val_padding | length + val | string | length %}
+    {# calculating the comment padding #}
+    {% set class_comment = class_comments_dict.get(key) %}
+    {% set class_comment_padding = calculate_padding(comment_col, cursor.class) %}
+    {{- key }}{{ class_val_padding }}{{ val }}{{ class_comment_padding }}{{ class_comment }}
+{% endfor %}
+{#
+    etc
+    ~~~
+#}
+{% set etc_dict = options_dict['settings']['flags']['etc'] %}
+{% for key, val in etc_dict.items() %}
+    {# calculate length of the key and padding needed for the value #}
+    {% set etc_val_padding = calculate_padding(data_col, key | length + 1) %}
+    {{- key }}{{ etc_val_padding }}{{ val }}
+{% endfor %}
+{#
+    outputs
+    -------
+    The outputdirectories are defined
+
+    class
+    ~~~~~
+#}
+{% set outputs_dict = options_dict['settings']['outputs'] %}
+{{ "##### Output Grid selection #####                       #15 comment line 15                             | *" }}
+{{ "----#                                                   #16 comment line 16                             | *" }}
+{{ "    0   #Maximum 5 points                               #17 Number of output grid points                | I5" }}
+{{ "---------#---------#---------#---------#---------#      #18 comment line 18                             | *" }}
+{{ "         1                                              #19 Grid number                                 | 5I10" }}
+{{ "         1                                              #20 Land class                                  | 5I10" }}
+{% set class_dir = outputs_dict['class'] %}
+{% set class_dir_comment_padding = calculate_padding(comment_col, class_dir | length) %}
+{% set class_dir_comment = "#21 Output directory                            | 5A10" %}
+{{ class_dir }}{{ class_dir_comment_padding }}{{ class_dir_comment }}
+{#
+    result
+    ~~~~~~
+#}
+{{ "##### Output Directory #####                            #22 comment line 22                             | *" }}
+{{ "---------#                                              #23 comment line 23                             | *" }}
+{% set result_dir = outputs_dict['result'] %}
+{% set result_dir_comment_padding = calculate_padding(comment_col, result_dir | length) %}
+{% set result_dir_comment = "#24 Output Directory for total-basin files      | A10" %}
+{{ result_dir }}{{ result_dir_comment_padding }}{{ result_dir_comment }}
+{#
+    dates
+    -----
+#}
+{% set dates_dict = options_dict['settings']['dates'] %}
+{{ "##### Simulation Run Times #####                        #25 comment line 25                             | *" }}
+{{ "---#---#---#---#                                        #26 comment line 26                             | *" }}
+{# 
+    start date
+    ~~~~~~~~~~
+#}
+{% set start_year = "%03d" | format(dates_dict['start_year']) %}
+{% set start_day = "%03d" | format(dates_dict['start_day']) %}
+{% set start_hour = dates_dict['start_hour'] %}
+{% if start_hour | string | length == 1 %}
+    {% set padding = "   " %}
+{% else %}
+    {% set padding = "  " %}
+{% endif %}
+{{ start_year }}{{ " " + start_day | string }}{{ padding }}{{ start_hour }}{{ "   0" }}
+{# 
+    end date
+    ~~~~~~~~
+#}
+{% set end_year = "%03d" | format(dates_dict['end_year']) %}
+{% set end_day = "%03d" | format(dates_dict['end_day']) %}
+{% set end_hour = dates_dict['end_hour'] %}
+{% if end_hour | string | length == 1 %}
+    {% set padding = "   " %}
+{% else %}
+    {% set padding = "  " %}
+{% endif %}
+{{ end_year }}{{ " " + end_day | string }}{{ padding }}{{ end_hour }}{{ "   0" }}

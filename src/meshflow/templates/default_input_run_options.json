@@ -1,0 +1,104 @@
+{
+    "settings": {
+        "flags": {
+            "forcing": {
+                "BASINFORCINGFLAG": {
+                    "format": "nc_subbasin",
+                    "start_date": 19000101,
+                    "hf": 60,
+                    "time_shift": -6,
+                    "fname": "MESH_forcing"
+                },
+                "BASINSHORTWAVEFLAG": "forcing_shortwave_name",
+                "BASINHUMIDITYFLAG": "forcing_humidity_name",
+                "BASINRAINFLAG": "forcing_precipitation_name",
+                "BASINPRESFLAG": "forcing_pressure_name",
+                "BASINLONGWAVEFLAG": "forcing_longwave_name",
+                "BASINWINDFLAG": "forcing_windspeed_name",
+                "BASINTEMPERATUREFLAG": "forcing_temperature_name"
+            },
+            "class": {
+                "IDISP": 0,
+                "IZREF": 1,
+                "IPCP": 1,
+                "ITC": 2,
+                "ITCG": 2,
+                "ITG": 2,
+                "IWF": 1,
+                "IPAI": 0,
+                "IHGT": 0,
+                "IALC": 0,
+                "IALS": 0,
+                "IALG": 0
+            },
+            "etc": {
+                "TIMESTEPFLAG": 60,
+                "INPUTPARAMSFORMFLAG": "txt",
+                "SHDFILEFLAG": "nc_subbasin",
+                "FROZENSOILINFILFLAG": 0,
+                "PBSMFLAG": "off",
+                "INTERPOLATIONFLAG": 0,
+                "SAVERESUMEFLAG": 0,
+                "RESUMEFLAG": 0,
+                "OUTFILESFLAG": "on",
+                "AUTOCALIBRATIONFLAG": 0,
+                "METRICSSPINUP": 183,
+                "BASEFLOWFLAG": "wf_lzs",
+                "BASINAVGWBFILEFLAG": "default",
+                "BASINAVGEBFILEFLAG": "default",
+                "STREAMFLOWOUTFLAG": "default",
+                "RUNMODE": "runrte",
+                "DIAGNOSEMODE": "off",
+                "PRINTSIMSTATUS": "default",
+                "FREZTH": -2.0,
+                "SWELIM": 1500.0,
+                "SNDENLIM": 600.0
+            }
+        },
+        "outputs": {
+            "class": "CLASSOUT",
+            "result": "results"
+        },
+        "dates": {
+            "start_year": 1900,
+            "start_day": 1,
+            "start_hour": 1,
+            "end_year": 2100,
+            "end_day": 365,
+            "end_hour": 24
+        }
+    },
+    "formats": {},
+    "comments": {
+        "flags": {
+            "forcing": {},
+            "class": {
+                "IDISP": "#02 Vegetation Displacement Height Calculation  | A20, I4",
+                "IZREF": "#03 Atmospheric Model Reference Height          | A20, I4",
+                "IPCP": "#04 Rainfall-Snowfall Partition distribution    | A20, I4",
+                "ITC": "#05 Canopy and Ground-Surface Temp Iter Scheme  | A20, I4", 
+                "ITCG": "#06 Canopy and Ground-Surface Temp Iter Scheme  | A20, I4",
+                "ITG": "#07 Canopy and Ground-Surface Temp Iter Scheme  | A20, I4",
+                "IWF": "#08 Water Flow control                          | A20, I4",
+                "IPAI": "#09 CLASS Input Leaf-Area Index Override        | A20, I4",
+                "IHGT": "#10 CLASS Input Vegetation Height Override      | A20, I4",
+                "IALC": "#11 CLASS Input Canopy Albedo Override          | A20, I4",
+                "IALS": "#12 CLASS Input Snow Albedo Override            | A20, I4",
+                "IALG": "#13 CLASS Input Soil Albedo Override            | A20, I4"
+            },
+            "etc": {}
+        },
+        "outputs": {
+            "class": "#21 Output directory                            | 5A10",
+            "result": "#24 Output Directory for total-basin files      | A10"
+        },
+        "dates": {
+            "start_date": "#27 Start year, day, hour, minute (2000 275   0   0)             | 4I4",
+            "end_date": "#28 Stop year, day, hour, minute  (2017 274   0   0)             | 4I4"
+        }
+    },
+    "columns": {
+        "data": 24,
+        "comments": 57
+    }
+}
