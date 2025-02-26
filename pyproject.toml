@@ -43,7 +43,7 @@ dependencies = [
   "hydrant>=0.1.0-dev0",
   "click>=8.1.2",
   "netCDF4>=1.6.4",
-  "cdo>=1.6.0",
+  "cdo>=1.5.6",
 ]
 
 [project.urls]
