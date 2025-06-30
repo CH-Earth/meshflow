@@ -20,10 +20,10 @@ def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
     hru_dim: str,
-    hru_var: str,
     units: Dict[str, str],
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
+    aggregate: bool = False,
     local_attrs: Optional[Dict[str, str]] = None,
     global_attrs: Optional[Dict[str, str]] = None,
 ) -> None:
@@ -84,10 +84,13 @@ def prepare_mesh_forcing(
     # CDO is used due to its stability, however, an xarray.DataSet
     # is returned
 
-    # [FIXME]: merge functionality could become more comprehensive in
-    # future versions
-    cdo_obj = cdo.Cdo()  # CDO object
-    ds = cdo_obj.mergetime(input=path, returnXArray=variables)  # Mergeing
+    if aggregate:
+        cdo_obj = cdo.Cdo()  # CDO object
+        ds = cdo_obj.mergetime(input=path, returnXArray=variables)  # Mergeing
+    else:
+        # if `aggregate` is False, we assume that the input files are already
+        # in proper chunk format and we just read the file
+        ds = xr.open_dataset(path)
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence

@@ -18,6 +18,7 @@ from typing import (
     Dict,
     Sequence,
     Union,
+    Optional,
 )
 
 # built-in libraries
@@ -37,6 +38,13 @@ from ._default_dicts import (
     default_attrs,
 )
 from meshflow import utility
+
+# custom typehints
+try:
+    from os import PathLike
+except ImportError:  # <Python3.8
+    from typing import Union
+    PathLike = Union[str, bytes]
 
 
 class MESHWorkflow(object):
@@ -77,6 +85,7 @@ class MESHWorkflow(object):
         ddb_min_values: Dict[str, float] = None,
         ddb_units: Dict[str, str] = None,
         ddb_to_units: Dict[str, str] = None,
+        settings: Dict[str, str] = None,
         gru_dim: str = 'gru',
         hru_dim: str = 'subbasin',
     ) -> None:
@@ -164,6 +173,19 @@ class MESHWorkflow(object):
         self.gru_var = self.gru_dim + '_var'
         self.hru_dim = hru_dim
         self.hru_var = self.hru_dim + '_var'
+
+        # MESH-specific variables
+        self.rank_str = 'Rank'
+        self.next_str = 'Next'
+
+        # If settings are provided as a dictionary
+        if settings is not None:
+            assert isinstance(settings, dict), "`settings` must be a `dict`"
+            self.settings = settings
+        else:
+            self.settings = {
+                'forcing_files': 'multiple', # default value
+            }
 
     def _read_input_files(self):
         """Read necessary input files
@@ -298,14 +320,47 @@ class MESHWorkflow(object):
             return {k: MESHWorkflow._json_decoder(v) for k, v in obj.items()}
         return obj
 
-    def run(self):
+    def run(
+        self,
+        save_path: Optional[PathLike] = None,
+    ) -> None:
         """
         Run the workflow and prepare a MESH setup
         """
-        # MESH specific variable names in ddb
-        _rank_var = 'Rank'
-        _next_var = 'Next'
+        # Initilize drainage database and forcing objects
+        self.init()
+        
+        # Generate drainage database
+        self.init_ddb()
+        
+        # Generate forcing data
+        if self.settings['forcing_files'] == 'multiple':
+            warnings.warn(
+                "Since multiple forcing files are needed, "
+                "each file will be processed and saved during "
+                "initialization.",
+                UserWarning,
+            )
+            if save_path is None:
+                raise ValueError("`save_path` cannot be None when processing multiple forcing files.")
+            
+        self.init_forcing(save=True, save_path=save_path)
 
+        # 3 generate land-cover dependant setting files for MESH
+        # [FIXME]: incoming - for now simple copying
+
+        # 4 generate other setting files for MESH
+        # [FIXME]: incoming - for now simple copying
+
+        return
+
+    def init(
+        self
+    ) -> None:
+        """
+        Initialize the MESH workflow by setting up drainage database and
+        forcing objects
+        """
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
         # This will assign: 1) self.rank, 2) self.next, 3) self.main_seg,
@@ -314,61 +369,173 @@ class MESHWorkflow(object):
 
         # reorder river segments and add rank and next to the
         # geopandas.DataFrame object
-        self.reordered_riv = self._reorder_riv(rank_name=_rank_var,
-                                               next_name=_next_var)
+        self.reordered_riv = self._reorder_riv(rank_name=self.rank_str,
+                                               next_name=self.next_str)
 
         # defined ordered_dims variables
-        _ordered_dims = {self.main_id: self.main_seg}
-
-        # 1 generate drainage database
-        self.ddb = utility.prepare_mesh_ddb(riv=self.reordered_riv,
-                                            cat=self.cat,
-                                            landcover=self.landcover,
-                                            cat_dim=self.main_id,
-                                            gru_dim=self.gru_dim,
-                                            gru_var=self.gru_var,
-                                            hru_dim=self.hru_dim,
-                                            hru_var=self.hru_var,
-                                            gru_names=self.landcover_classes,
-                                            include_vars=self.ddb_vars,
-                                            attr_local=self.ddb_local_attrs,
-                                            attr_global=self.ddb_global_attrs,
-                                            min_values=self.ddb_min_values,
-                                            fill_na=None,
-                                            ordered_dims=_ordered_dims,
-                                            ddb_units=self.ddb_units,
-                                            ddb_to_units=self.ddb_to_units)
-
-        # forcing unit registry
-        _ureg = pint.UnitRegistry(force_ndarray_like=True)
-        _ureg.define('millibar = 1e-3 * bar')
-
-        # 2 generate forcing data
-        # making a list of variables
-        self.forcing = utility.prepare_mesh_forcing(
-                            path=self.forcing_files,
-                            variables=self.forcing_vars,
-                            hru_dim=self.hru_dim,
-                            hru_var=self.hru_var,
-                            units=self.forcing_units,
-                            to_units=self.forcing_to_units,
-                            unit_registry=_ureg,
-                            local_attrs=self.forcing_local_attrs,
-                            global_attrs=self.forcing_global_attrs)
+        self.ordered_dims = {self.main_id: self.main_seg}
 
         # assigning coordinates to both `forcing` and `ddb` of an instance
         self._coords_ds = utility.prepare_mesh_coords(self.coords,
                                                       cat_dim=self.main_id,
                                                       hru_dim=self.hru_dim)
-        # ad-hoc manipulations on the forcing and drainage database
-        self.forcing = self._adhoc_mesh_vars(self.forcing)
+
+    def init_ddb(
+        self,
+        save_path: Optional[PathLike] = None,    
+    ) -> None:
+        """
+        Initialize the drainage database object
+        """
+        # generate mesh drainage database
+        self.ddb = utility.prepare_mesh_ddb(
+            riv=self.reordered_riv,
+            cat=self.cat,
+            landcover=self.landcover,
+            cat_dim=self.main_id,
+            gru_dim=self.gru_dim,
+            gru_var=self.gru_var,
+            hru_dim=self.hru_dim,
+            hru_var=self.hru_var,
+            gru_names=self.landcover_classes,
+            include_vars=self.ddb_vars,
+            attr_local=self.ddb_local_attrs,
+            attr_global=self.ddb_global_attrs,
+            min_values=self.ddb_min_values,
+            fill_na=None,
+            ordered_dims=self.ordered_dims,
+            ddb_units=self.ddb_units,
+            ddb_to_units=self.ddb_to_units)
+
+        # ad-hoc manipulations on the drainage database
         self.ddb = self._adhoc_mesh_vars(self.ddb)
 
-        # 3 generate land-cover dependant setting files for MESH
-        # [FIXME]: incoming - for now simple copying
+        return
 
-        # 4 generate other setting files for MESH
-        # [FIXME]: incoming - for now simple copying
+    def init_forcing(
+            self,
+            save: bool = False,
+            save_path: Optional[PathLike] = None,
+    ) -> Optional[xr.Dataset]:
+        """
+        Initialize the forcing object
+        """
+        # Type checks
+        assert isinstance(save, bool), "`save` must be a boolean value"
+        if save_path is not None:
+            assert isinstance(save_path, (str, PathLike)), \
+                "`save_path` must be a string or PathLike object"
+
+        # Check if forcing files are provided
+        if not self.forcing_files:
+            raise ValueError("`forcing_files` cannot be empty")
+
+        # Check if forcing variables are provided
+        if not self.forcing_vars:
+            raise ValueError("`forcing_vars` cannot be empty")
+
+        # Check if forcing units are provided
+        if not self.forcing_units:
+            raise ValueError("`forcing_units` cannot be empty")
+
+        # Check if forcing to_units are provided
+        if not self.forcing_to_units:
+            raise ValueError("`forcing_to_units` cannot be empty")
+
+        # Check if save is enabled and save_path is provided
+        if save and save_path is None:
+            raise ValueError("`save_path` cannot be None if `save` is True")
+        
+        # if save_path is not None, make sure the directory exists
+        if save_path is not None:
+            # get the absolute path
+            save_path = os.path.abspath(save_path)
+            
+            # make sure the directory exists
+            if not os.path.exists(save_path):
+                os.makedirs(save_path, exist_ok=True)
+            else:
+                warnings.warn(
+                    f"Directory {save_path} already exists. "
+                    "Forcing files will be saved there.",
+                    UserWarning,
+                )
+
+        # Forcing unit registry
+        _ureg = pint.UnitRegistry(force_ndarray_like=True)
+        _ureg.define('millibar = 1e-3 * bar')
+
+        # Generate forcing data
+        # making a list of variables
+        if self.settings['forcing_files'] == 'multiple':
+            # Make a list of forcing files
+            files = glob.glob(self.forcing_files)
+            if not files:
+                raise ValueError("No forcing files found matching the pattern")
+            
+            for forcing_file in files:
+                ds = utility.prepare_mesh_forcing(
+                    path=forcing_file,
+                    variables=self.forcing_vars,
+                    hru_dim=self.hru_dim,
+                    units=self.forcing_units,
+                    to_units=self.forcing_to_units,
+                    unit_registry=_ureg,
+                    aggregate=self.settings['forcing_files'],
+                    local_attrs=self.forcing_local_attrs,
+                    global_attrs=self.forcing_global_attrs
+                )
+
+                # modify adhoc mesh variables
+                ds = self._adhoc_mesh_vars(ds)
+
+                # modify time encoding of the forcing object, though MESH
+                # does not care about the time encoding anymore >r1860
+                ds = self._modify_forcing_encodings(ds)
+
+                # save the forcing object to a file
+                if save:
+                    file_name = os.path.basename(forcing_file)
+                    # save the forcing object to a file
+                    ds.to_netcdf(os.path.join(save_path, file_name),
+                                 format='NETCDF4_CLASSIC',
+                                 unlimited_dims=['time'])
+                else:
+                    warnings.warn(
+                        "Forcing object is not saved, but returned as "
+                        "xarray.Dataset object(s).",
+                        UserWarning,
+                    )
+
+        else:
+            # if `self.settings['forcing_files']` is not 'multiple', we assume
+            # that the forcing files should be merged
+            ds = utility.prepare_mesh_forcing(
+                    path=self.forcing_files,
+                    variables=self.forcing_vars,
+                    hru_dim=self.hru_dim,
+                    units=self.forcing_units,
+                    to_units=self.forcing_to_units,
+                    unit_registry=_ureg,
+                    aggregate=self.settings['forcing_files'],
+                    local_attrs=self.forcing_local_attrs,
+                    global_attrs=self.forcing_global_attrs
+                )
+            # modify adhoc mesh variables
+            ds = self._adhoc_mesh_vars(ds)
+
+            # modify time encoding of the forcing object, though MESH
+            # does not care about the time encoding anymore >r1860
+            ds = self._modify_forcing_encodings(ds)
+
+            # save the forcing object to a file
+            if save:
+                # save the forcing object to a file
+                ds.to_netcdf(os.path.join(save_path, "MESH_forcing.nc"),
+                                format='NETCDF4_CLASSIC',
+                                unlimited_dims=['time'])
+                
+            self.forcing = ds
 
         return
 
@@ -473,14 +640,24 @@ class MESHWorkflow(object):
 
         return _reordered_riv
 
-    def _modify_forcing_encodings(self):
+    def _modify_forcing_encodings(
+        self,
+        ds: [xr.Dataset] = None,
+    ) -> xr.Dataset:
         """Necessary adhoc modifications on the forcing object's
         encoding
         """
+        if ds is None:
+            ds = self.forcing
+
+        # check if the `time` variable is present
+        if 'time' not in ds:
+            raise ValueError("`time` variable not found in the forcing object")
+
         # empty encoding dictionary of the `time` variable
-        self.forcing.time.encoding = {}
+        ds.time.encoding = {}
         # estimate the frequency offset value
-        _freq = pd.infer_freq(self.forcing.time)
+        _freq = pd.infer_freq(ds.time)
         # get the full name
         _freq_long = utility.forcing_prep.freq_long_name(_freq)
 
@@ -489,11 +666,14 @@ class MESHWorkflow(object):
                 'units': f'{_freq_long} since 1900-01-01 12:00:00'
             }
         }
-        self.forcing.time.encoding = _encoding
+        ds.time.encoding = _encoding
 
-        return
+        return ds
 
-    def _adhoc_mesh_vars(self, ds):
+    def _adhoc_mesh_vars(
+        self,
+        ds,
+    ) -> xr.Dataset:
         """
         Ad-hoc manipulations on drainage database and forcing objects
         including adding `crs` variables, adding coordinates, and adding
