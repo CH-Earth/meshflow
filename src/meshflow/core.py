@@ -329,10 +329,10 @@ class MESHWorkflow(object):
         """
         # Initilize drainage database and forcing objects
         self.init()
-        
+
         # Generate drainage database
         self.init_ddb()
-        
+
         # Generate forcing data
         if self.settings['forcing_files'] == 'multiple':
             warnings.warn(
@@ -343,14 +343,18 @@ class MESHWorkflow(object):
             )
             if save_path is None:
                 raise ValueError("`save_path` cannot be None when processing multiple forcing files.")
-            
-        self.init_forcing(save=True, save_path=save_path)
+
+            self.init_forcing(save=True, save_path=save_path)
+
+        else:
+            self.init_forcing(save=False)
 
         # 3 generate land-cover dependant setting files for MESH
-        # [FIXME]: incoming - for now simple copying
+        self.init_class()
 
         # 4 generate other setting files for MESH
-        # [FIXME]: incoming - for now simple copying
+        self.init_settings()
+
 
         return
 
@@ -450,7 +454,7 @@ class MESHWorkflow(object):
         if save_path is not None:
             # get the absolute path
             save_path = os.path.abspath(save_path)
-            
+
             # make sure the directory exists
             if not os.path.exists(save_path):
                 os.makedirs(save_path, exist_ok=True)
@@ -469,10 +473,11 @@ class MESHWorkflow(object):
         # making a list of variables
         if self.settings['forcing_files'] == 'multiple':
             # Make a list of forcing files
-            files = glob.glob(self.forcing_files)
+            files = sorted(glob.glob(self.forcing_files))
+
             if not files:
                 raise ValueError("No forcing files found matching the pattern")
-            
+
             for forcing_file in files:
                 ds = utility.prepare_mesh_forcing(
                     path=forcing_file,
@@ -507,6 +512,9 @@ class MESHWorkflow(object):
                         UserWarning,
                     )
 
+                # closing the file
+                ds.close()
+
         else:
             # if `self.settings['forcing_files']` is not 'multiple', we assume
             # that the forcing files should be merged
@@ -534,9 +542,15 @@ class MESHWorkflow(object):
                 ds.to_netcdf(os.path.join(save_path, "MESH_forcing.nc"),
                                 format='NETCDF4_CLASSIC',
                                 unlimited_dims=['time'])
-                
+
             self.forcing = ds
 
+        return
+    
+    def init_class():
+        return
+    
+    def init_settings(self):
         return
 
     def save(self, output_dir):

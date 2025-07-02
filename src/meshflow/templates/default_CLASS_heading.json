@@ -1,0 +1,19 @@
+{
+    "vars": {
+        "case_name": "MESH Model",
+        "author": "University of Calgary",
+        "location": "University of Calgary"
+    },
+    "comments": {
+        "case_name": "01 TITLE",
+        "author": "02 NAME",
+        "location": "03 PLACE"
+    },
+    "formats": {},
+    "columns": {
+        "case_name": 3,
+        "author": 3,
+        "location": 3
+    }
+}
+

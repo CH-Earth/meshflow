@@ -95,12 +95,18 @@
 {%- set index = namespace(gru=0) -%}
 {%- set title = namespace(gru=0) -%}
 {%- set cursor = namespace(gru=0, val=0) -%}
+{%- set lengths = namespace(title_padding=0) -%}
 {# iterate over each block, parameter and column of data provided #}
 {%- for gru_block in gru_dict -%}
-    {# grumpy name is the key of the dictionary #}
-    {%- set gru = gru_block.keys() | first -%}
+    {# gru name is the key of the dictionary #}
+    {%- set gru = gru_block.keys() | first | string -%}
     {# title padding is always 3 whitespaces between GRU names #}
-    {%- set title_padding = " " * 3 -%}
+    {%- if gru | string | length <= 5 -%}
+        {%- set lengths.title_padding = 6 -%}
+    {%- else -%}
+	{%- set lengths.title_padding = 3 -%}
+    {%- endif -%}
+    {%- set title_padding = " " * lengths.title_padding -%}
     {# if exclamation point is not printed (the first GRU) #}
     {%- if title.gru == 0 -%}
         {# put exclamation point + 5 whitespaces + gru name #}
@@ -154,7 +160,7 @@
             {# the cursor value position #}
             {%- set cursor.val = cursor.val + (param | length) + (padding | length) + (param_val | string | length) -%}
             {# the cursor gru position #}
-            {%- set cursor.gru = cursor.gru + 6 + (gru_name | length) + 3 -%}
+            {%- set cursor.gru = cursor.gru + 7 + (lengths.title_padding) -%}
         {%- else -%}
             {# only print padding and param_val if variable name is already
                written #}
@@ -163,7 +169,7 @@
             {# the cursor value position #}
             {%- set cursor.val = cursor.gru + (param_val | string | length) -%}
             {# the cursor gru position #}
-            {%- set cursor.gru = cursor.gru + (gru_name | length) + (title_padding | length)-%}
+            {%- set cursor.gru = cursor.gru + (gru_name | string | length) + (title_padding | length)-%}
         {%- endif -%}
     {%- endfor -%}
 {%- endfor -%}
