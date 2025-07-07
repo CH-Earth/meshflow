@@ -19,7 +19,6 @@ from typing import (
 def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
-    hru_dim: str,
     units: Dict[str, str],
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
@@ -33,7 +32,7 @@ def prepare_mesh_forcing(
     ----------
     path : str
         The path to input forcing files.
-    variables : Sequence[str]
+    variables : Dict[str, str]
         A sequence of variable names to be included in the output file.
     units : Dict[str, str]
         A dictionary mapping variable names to their units.
@@ -63,17 +62,28 @@ def prepare_mesh_forcing(
 
     Notes
     -----
-    The function merges all the input forcing files into a single NetCDF file
-    as MESH only reads one file. CDO is used for merging, but the function
-    returns an xarray.Dataset.
+    - The function merges all the input forcing files into a single NetCDF file
+      as MESH only reads one file. CDO is used for merging, but the function
+      returns an xarray.Dataset.
+    - The `variables` dictionary must contain the following keys:
+        - air_pressure
+        - specific_humidity
+        - air_temperature
+        - wind_speed
+        - preciptiation
+        - shortwave_radiation
+        - longwave_radiation
+    - The `units` dictionary must contain the same keys as `variables`
+    - The `to_units` dictionary must also contain the same keys as `variables`
 
     [FIXME]: The merge functionality could become more comprehensive in future
     versions.
     """
 
     # if variables dtype is not string, throw an exception
-    if not isinstance(variables[0], str):
-        raise TypeError("`variables` must be a sequence of string values")
+    if not isinstance(variables, dict):
+        raise TypeError("`variables` must be a dictionary of string keys and "
+                        "values")
 
     # if `units` is not provided, throw an exception
     if not units:
@@ -86,11 +96,14 @@ def prepare_mesh_forcing(
 
     if aggregate:
         cdo_obj = cdo.Cdo()  # CDO object
-        ds = cdo_obj.mergetime(input=path, returnXArray=variables)  # Mergeing
+        ds = cdo_obj.mergetime(input=path, returnXArray=list(variables.values()))  # Mergeing
     else:
         # if `aggregate` is False, we assume that the input files are already
         # in proper chunk format and we just read the file
         ds = xr.open_dataset(path)
+    
+    # rename easymore's output name
+    ds = ds.transpose().rename({v: k for k, v in variables.items()})
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence
@@ -114,10 +127,6 @@ def prepare_mesh_forcing(
 
     # print the netCDF file
     ds = ds.pint.dequantify()
-
-    # rename easymore's output name
-    var = [i for i in ds.dims.keys() if i != 'time']
-    ds = ds.transpose().rename({k: hru_dim for k in var})
 
     # convert calendar to 'standard' based on MESH's input standard
     ds = ds.convert_calendar(calendar='standard')

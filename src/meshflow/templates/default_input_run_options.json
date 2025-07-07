@@ -4,18 +4,19 @@
             "forcing": {
                 "BASINFORCINGFLAG": {
                     "format": "nc_subbasin",
-                    "start_date": 19000101,
-                    "hf": 60,
-                    "time_shift": -6,
-                    "fname": "MESH_forcing"
+                    "start_date": "",
+                    "hf": "",
+                    "time_shift": "",
+                    "fname": ""
                 },
-                "BASINSHORTWAVEFLAG": "forcing_shortwave_name",
-                "BASINHUMIDITYFLAG": "forcing_humidity_name",
-                "BASINRAINFLAG": "forcing_precipitation_name",
-                "BASINPRESFLAG": "forcing_pressure_name",
-                "BASINLONGWAVEFLAG": "forcing_longwave_name",
-                "BASINWINDFLAG": "forcing_windspeed_name",
-                "BASINTEMPERATUREFLAG": "forcing_temperature_name"
+                "BASINSHORTWAVEFLAG": "",
+                "BASINHUMIDITYFLAG": "",
+                "BASINRAINFLAG": "",
+                "BASINPRESFLAG": "",
+                "BASINLONGWAVEFLAG": "",
+                "BASINWINDFLAG": "",
+                "BASINTEMPERATUREFLAG": "",
+                "FORCINGLIST": ""
             },
             "class": {
                 "IDISP": 0,
@@ -32,7 +33,7 @@
                 "IALG": 0
             },
             "etc": {
-                "TIMESTEPFLAG": 60,
+                "TIMESTEPFLAG": "",
                 "INPUTPARAMSFORMFLAG": "txt",
                 "SHDFILEFLAG": "nc_subbasin",
                 "FROZENSOILINFILFLAG": 0,
@@ -60,12 +61,12 @@
             "result": "results"
         },
         "dates": {
-            "start_year": 1900,
-            "start_day": 1,
-            "start_hour": 1,
-            "end_year": 2100,
-            "end_day": 365,
-            "end_hour": 24
+            "start_year": "",
+            "start_day": "",
+            "start_hour": "",
+            "end_year": "",
+            "end_day": "",
+            "end_hour": ""
         }
     },
     "formats": {},
@@ -89,12 +90,12 @@
             "etc": {}
         },
         "outputs": {
-            "class": "#21 Output directory                            | 5A10",
-            "result": "#24 Output Directory for total-basin files      | A10"
+            "class": "#14 Output directory                            | 5A10",
+            "result": "#15 Output Directory for total-basin files      | A10"
         },
         "dates": {
-            "start_date": "#27 Start year, day, hour, minute (2000 275   0   0)             | 4I4",
-            "end_date": "#28 Stop year, day, hour, minute  (2017 274   0   0)             | 4I4"
+            "start_date": "#16 Start year, day, hour, minute (2000 275   0   0)             | 4I4",
+            "end_date": "#17 Stop year, day, hour, minute  (2017 274   0   0)             | 4I4"
         }
     },
     "columns": {

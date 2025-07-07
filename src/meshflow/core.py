@@ -8,12 +8,14 @@ and Cooper Albano at the University of Saskatchewan applying MESH modelling
 framework to the North American domain.
 """
 
+# third-party libraries
 import pandas as pd
 import numpy as np
 import geopandas as gpd
 import xarray as xr
 import pint
 
+# built-in libraries
 from typing import (
     Dict,
     Sequence,
@@ -21,7 +23,6 @@ from typing import (
     Optional,
 )
 
-# built-in libraries
 import re
 import json
 import sys
@@ -30,16 +31,23 @@ import os
 import shutil
 import warnings
 
-from ._default_dicts import (
+# local imports
+from ._default_attrs import (
     ddb_global_attrs_default,
     ddb_local_attrs_default,
     forcing_local_attrs_default,
     forcing_global_attrs_default,
     default_attrs,
 )
+from ._default_dicts import (
+    mesh_forcing_units_default,
+    mesh_drainage_database_units_default,
+    mesh_drainage_database_minimums_default,
+    mesh_drainage_database_names_default,
+)
 from meshflow import utility
 
-# custom typehints
+# custom type hints
 try:
     from os import PathLike
 except ImportError:  # <Python3.8
@@ -64,41 +72,32 @@ class MESHWorkflow(object):
     # main constructor
     def __init__(
         self,
-        riv: str,
-        cat: str,
-        landcover: str,
-        forcing_files: str,
-        forcing_vars: Sequence[str],
-        main_id: str,
-        ds_main_id: str,
-        landcover_classes: Dict[str, str] = None,
+        riv: PathLike,
+        cat: PathLike,
+        landcover: PathLike,
+        landcover_classes: Dict[str, str],
+        forcing_files: PathLike = None,
+        forcing_vars: Dict[str, str] = None,
         forcing_units: Dict[str, str] = None,
-        forcing_to_units: Dict[str, str] = None,
-        forcing_local_attrs: Dict[str, str] = None,
-        forcing_global_attrs: Dict[str, str] = None,
-        outlet_value: int = -9999,
-        riv_cols: Dict[str, Union[str, int]] = None,
-        cat_cols: Dict[str, Union[str, int]] = None,
         ddb_vars: Dict[str, str] = None,
-        ddb_local_attrs: Dict[str, str] = None,
-        ddb_global_attrs: Dict[str, str] = None,
-        ddb_min_values: Dict[str, float] = None,
         ddb_units: Dict[str, str] = None,
-        ddb_to_units: Dict[str, str] = None,
+        main_id: str = None,
+        ds_main_id: str = None,
+        forcing_to_units: Dict[str, str] = mesh_forcing_units_default,
+        forcing_local_attrs: Dict[str, str] = forcing_local_attrs_default,
+        forcing_global_attrs: Dict[str, str] = forcing_global_attrs_default,
+        ddb_local_attrs: Dict[str, str] = ddb_local_attrs_default,
+        ddb_global_attrs: Dict[str, str] = ddb_global_attrs_default,
+        ddb_min_values: Dict[str, float] = mesh_drainage_database_minimums_default,
+        ddb_to_units: Dict[str, str] = mesh_drainage_database_units_default,
         settings: Dict[str, str] = None,
-        gru_dim: str = 'gru',
+        gru_dim: str = 'NGRU',
         hru_dim: str = 'subbasin',
+        outlet_value: int = -9999,
     ) -> None:
         """Main constructor of MESHWorkflow
         """
-        # forcing variables
-        if not forcing_vars:
-            raise ValueError("`forcing_vars` cannot be empty")
-
-        # ddb variables
-        if not ddb_vars:
-            raise ValueError("`ddb_vars` cannot be empty")
-
+        # dictionary to check types
         _dict_items = [forcing_units,
                        forcing_to_units,
                        ddb_units,
@@ -148,8 +147,6 @@ class MESHWorkflow(object):
         self.main_id = main_id
         self.ds_main_id = ds_main_id
         self.outlet_value = outlet_value
-        self.riv_cols = riv_cols
-        self.cat_cols = cat_cols
 
         # forcing specs
         self.forcing_vars = forcing_vars
@@ -158,9 +155,9 @@ class MESHWorkflow(object):
 
         # drainage database specs
         self.ddb_vars = ddb_vars
-        self.ddb_min_values = ddb_min_values
         self.ddb_units = ddb_units
         self.ddb_to_units = ddb_to_units
+        self.ddb_min_values = ddb_min_values
 
         # landcover specs
         self.landcover_classes = landcover_classes
@@ -179,13 +176,8 @@ class MESHWorkflow(object):
         self.next_str = 'Next'
 
         # If settings are provided as a dictionary
-        if settings is not None:
-            assert isinstance(settings, dict), "`settings` must be a `dict`"
-            self.settings = settings
-        else:
-            self.settings = {
-                'forcing_files': 'multiple', # default value
-            }
+        assert isinstance(settings, dict), "`settings` must be a `dict`"
+        self.settings = settings
 
     def _read_input_files(self):
         """Read necessary input files
@@ -334,7 +326,7 @@ class MESHWorkflow(object):
         self.init_ddb()
 
         # Generate forcing data
-        if self.settings['forcing_files'] == 'multiple':
+        if self.settings['core']['forcing_files'] == 'multiple':
             warnings.warn(
                 "Since multiple forcing files are needed, "
                 "each file will be processed and saved during "
@@ -386,11 +378,53 @@ class MESHWorkflow(object):
 
     def init_ddb(
         self,
-        save_path: Optional[PathLike] = None,    
+        return_ds = False,
+        save_path: Optional[PathLike] = None,
     ) -> None:
         """
         Initialize the drainage database object
         """
+        # ddb variables
+        if not self.ddb_vars:
+            raise ValueError("`ddb_vars` cannot be empty")
+
+        # Creating local dictionaries for drainage database variables
+        ddb_vars_renamed = {}
+        ddb_units_renamed = {}
+        ddb_to_units_renamed = {}
+        ddb_min_values_renamed = {}
+
+        # Based on the input `ddb_vars`, adjust the names with MESH standard
+        # values
+        for k, v in self.ddb_vars.items():
+            if k in mesh_drainage_database_names_default:
+                ddb_vars_renamed[v] = mesh_drainage_database_names_default[k]
+        # Assuring default variables are all added
+        for k in ('rank', 'next'):
+                v = mesh_drainage_database_names_default[k]
+                ddb_vars_renamed[v] = v
+        # Similarly for the `landclass` variable, while its naming scheme is
+        # an outlier
+        ddb_vars_renamed['landclass'] = mesh_drainage_database_names_default['landclass']
+
+        # similarly for `ddb_units`
+        for k, v in self.ddb_units.items():
+            if k in mesh_drainage_database_names_default:
+                new_k = mesh_drainage_database_names_default[k]
+                ddb_units_renamed[new_k] = v
+
+        # and for `ddb_to_units`
+        for k, v in self.ddb_to_units.items():
+            if k in mesh_drainage_database_names_default:
+                new_k = mesh_drainage_database_names_default[k]
+                ddb_to_units_renamed[new_k] = v
+
+        # finally, for the minimum values of the drainage database
+        for k, v in self.ddb_min_values.items():
+            if k in mesh_drainage_database_names_default:
+                new_k = mesh_drainage_database_names_default[k]
+                ddb_min_values_renamed[new_k] = v
+
         # generate mesh drainage database
         self.ddb = utility.prepare_mesh_ddb(
             riv=self.reordered_riv,
@@ -398,28 +432,29 @@ class MESHWorkflow(object):
             landcover=self.landcover,
             cat_dim=self.main_id,
             gru_dim=self.gru_dim,
-            gru_var=self.gru_var,
             hru_dim=self.hru_dim,
-            hru_var=self.hru_var,
             gru_names=self.landcover_classes,
-            include_vars=self.ddb_vars,
+            include_vars=ddb_vars_renamed,
             attr_local=self.ddb_local_attrs,
             attr_global=self.ddb_global_attrs,
-            min_values=self.ddb_min_values,
+            min_values=ddb_min_values_renamed,
             fill_na=None,
             ordered_dims=self.ordered_dims,
-            ddb_units=self.ddb_units,
-            ddb_to_units=self.ddb_to_units)
+            ddb_units=ddb_units_renamed,
+            ddb_to_units=ddb_to_units_renamed)
 
         # ad-hoc manipulations on the drainage database
         self.ddb = self._adhoc_mesh_vars(self.ddb)
 
-        return
+        if return_ds:
+            return self.ddb
+        else:
+            return
 
     def init_forcing(
-            self,
-            save: bool = False,
-            save_path: Optional[PathLike] = None,
+        self,
+        save: bool = False,
+        save_path: Optional[PathLike] = None,
     ) -> Optional[xr.Dataset]:
         """
         Initialize the forcing object
@@ -468,10 +503,12 @@ class MESHWorkflow(object):
         # Forcing unit registry
         _ureg = pint.UnitRegistry(force_ndarray_like=True)
         _ureg.define('millibar = 1e-3 * bar')
+        _ureg.define('degrees_north = 1 * degree')
+        _ureg.define('degrees_east = 1 * degree')
 
         # Generate forcing data
         # making a list of variables
-        if self.settings['forcing_files'] == 'multiple':
+        if self.settings['core']['forcing_files'] == 'multiple':
             # Make a list of forcing files
             files = sorted(glob.glob(self.forcing_files))
 
@@ -482,11 +519,10 @@ class MESHWorkflow(object):
                 ds = utility.prepare_mesh_forcing(
                     path=forcing_file,
                     variables=self.forcing_vars,
-                    hru_dim=self.hru_dim,
                     units=self.forcing_units,
                     to_units=self.forcing_to_units,
                     unit_registry=_ureg,
-                    aggregate=self.settings['forcing_files'],
+                    aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
                     global_attrs=self.forcing_global_attrs
                 )
@@ -516,16 +552,15 @@ class MESHWorkflow(object):
                 ds.close()
 
         else:
-            # if `self.settings['forcing_files']` is not 'multiple', we assume
+            # if `self.settings['core']['forcing_files']` is not 'multiple', we assume
             # that the forcing files should be merged
             ds = utility.prepare_mesh_forcing(
                     path=self.forcing_files,
                     variables=self.forcing_vars,
-                    hru_dim=self.hru_dim,
                     units=self.forcing_units,
                     to_units=self.forcing_to_units,
                     unit_registry=_ureg,
-                    aggregate=self.settings['forcing_files'],
+                    aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
                     global_attrs=self.forcing_global_attrs
                 )
@@ -546,11 +581,124 @@ class MESHWorkflow(object):
             self.forcing = ds
 
         return
-    
-    def init_class():
+
+    def init_class(
+        self,
+        return_text: bool = False,
+    ) -> Optional[str]:
+        """
+        Initialize the class text file for MESH
+        """
+        # routine checks
+        # check if 'measurement_height' is provided in the 'class_params'
+        if 'measurement_heights' not in self.settings['class_params']:
+            raise KeyError("`measurement_heights` must be provided in `class_params`")
+        # check if necessary parameters are provided in `measurement_height`
+        if not all(key in self.settings['class_params']['measurement_heights']
+                   for key in ['wind_speed', 'specific_humidity', 'air_temperature', 'roughness_length']):
+            raise KeyError("`measurement_heights` must contain 'wndspd', 'spechum',"
+                           " 'airtemp', and 'roughness_length' keys")
+        # if the values of `specific_humidity`, `air_temperature` are not equal
+        # raise an error
+        if self.settings['class_params']['measurement_heights']['specific_humidity'] != \
+           self.settings['class_params']['measurement_heights']['air_temperature']:
+            raise ValueError("`measurement_heights['specific_humidity']` and "
+                             "`measurement_heights['air_temperature']` must be equal")
+
+        # calculate area's centroid coordinates
+        area_centroids = utility.extract_centroid(
+            self.cat.dissolve(),
+            obj_id=self.main_id)
+
+        area_centroid_x = area_centroids['lon'][0]
+        area_centroid_y = area_centroids['lat'][0]
+
+        # extract subbasin ID counts
+        subbasin_counts = len(self.cat[self.main_id].index)
+
+        # extract landcover class counts
+        landcover_counts = len(self.landcover.columns.str.startswith('frac_'))
+
+        # build the CLASS "case"s dictionary
+        class_case = {
+            "centroid_lat": area_centroid_y,
+            "centroid_lon": area_centroid_x,
+            "reference_height_wndspd": self.settings['class_params']['measurement_heights']['wind_speed'],
+            "reference_height_spechum_airtemp": self.settings['class_params']['measurement_heights']['specific_humidity'],
+            "reference_height_surface_roughness": self.settings['class_params']['measurement_heights']['roughness_length'],
+            "NL": subbasin_counts,
+            "NM": landcover_counts,
+        }
+
+        # build the CLASS "info" dictionary
+        if 'copyright' in self.settings['class_params']:
+            if 'author' in self.settings['class_params']['copyright'] and \
+               'email' in self.settings['class_params']['copyright']:
+                class_info = {
+                    'author': self.settings['class_params']['copyright']['author'],
+                    'location': self.settings['class_params']['copyright']['email'],
+                }
+
+        # if `class_info` is not provided, use the default values
+        if 'class_info' not in locals():
+            class_info = {
+                'author': 'MESHFlow',
+                'location': 'University of Calgary, Canada',
+            }
+
+        # build the automated CLASS "gru" dictionary to be updated later by
+        # user's manual inputs
+        class_gru = {}
+        for gru in self.landcover.columns:
+            # extract the GRU name, typically an integer
+            gru_name = int(gru.replace('frac_', ''))
+
+            # extract class names from the landcover_classes dictionary
+            if gru_name not in self.landcover_classes:
+                raise KeyError(f"GRU {gru_name} not found in landcover_classes")
+            class_name = self.landcover_classes[gru_name]
+            # split the class name into a list of class names
+            # e.g., 'needleleaf deciduous' -> ['needleleaf', 'deciduous']
+            class_name_list = class_name.split(' ')
+            # drop the non-informative words
+            class_name_list = [word for word in class_name_list if len(word) > 3]
+            # create an mid with a maximum length of 34 characters
+            mid = '_'.join([word[:4] for word in class_name_list])[:34]
+
+            # build the gru dictionary for the gru block
+            class_gru[gru_name] = {
+                'class': 'needleleaf', # default value for everything
+                'mid': mid,
+            }
+
+        # update the class_gru dictionary with user inputs
+        if 'class_params' in self.settings and 'grus' in self.settings['class_params']:
+            for gru, params in self.settings['class_params']['grus'].items():
+                # check if the gru is in the class_gru dictionary
+                if gru in class_gru:
+                    # update the class_gru dictionary with user inputs
+                    class_gru[gru].update(params)
+                else:
+                    warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
+
+        # generate the CLASS text file
+        class_text = utility.render_class_template(
+            class_info=class_info,
+            class_case=class_case,
+            class_grus=class_gru,
+        )
+
+        # if return is requested, return the class text
+        if return_text:
+            return class_text
+
+    def init_hydrology(
+        self,
+        return_text: bool = False,
+    ) -> Optional[str]:
         return
-    
-    def init_settings(self):
+
+    def init_options(self):
         return
 
     def save(self, output_dir):
@@ -696,7 +844,8 @@ class MESHWorkflow(object):
         # fix coordinates of the forcing and ddb objects
         ds = xr.combine_by_coords([self._coords_ds, ds])
 
-        # adding `crs` variable to both
+        # adding `crs` variable to both main Dataset groups
+        # i.e., forcing and drainage database
         ds['crs'] = 1
 
         # adjust local attributes of common variables
@@ -707,9 +856,10 @@ class MESHWorkflow(object):
         # downcast datatype of coordinate variables
         for c in ds.coords:
             if np.issubdtype(ds[c], float):
-                ds[c] = pd.to_numeric(ds[c].to_numpy(),
-                                      errors='ignore',
-                                      downcast='integer')
+                try:
+                    ds[c] = pd.to_numeric(ds[c].to_numpy(), downcast='integer')
+                except Exception:
+                    pass
 
         # assure the order of `self._hru_dim` is correct
         ds = ds.loc[{self.hru_dim: self.main_seg}].copy()
@@ -718,6 +868,3 @@ class MESHWorkflow(object):
 
     def _progress_bar():
         return
-
-    def _submit_job():
-        pass

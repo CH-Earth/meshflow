@@ -161,6 +161,8 @@
         'crops': 2,
         'grass': 3,
         'barrenland': 4,
+	'urban': 4,
+	'water': 4,
     }
 -%}
 {# define line orders #}
@@ -214,7 +216,8 @@
         },
     }
 -%}
-{# set number of  #}
+{# initiate an `MID` counter variable #}
+{% set mid = namespace(counter=100) %} 
 {# iterate over the blocks and populate sections #}
 {% for block_element in gru_block.get(variables) %}
     {# necessary dictionary definitions #}
@@ -262,7 +265,7 @@
                 {%- set extra_space = "" -%}
             {%- endif -%}
             {# if barrenland, no `val' is defined for qa50, vpda, psgb #}
-            {%- if (class == 'barrenland')
+            {%- if (class == 'barrenland' or class == 'water' or class == 'urban')
                 and (number_accepted_elements == 4)
                 -%}
                 {{- extra_space }}{{ "   0.000   0.000   0.000   0.000" -}}
@@ -293,13 +296,20 @@
             {%- if element == 'mid' -%}
                 {%- set val = line_dict.get(element) -%}
                 {%- set padding = " " * 3 -%}
+		{%- if class == 'water' -%}
+                    {{- padding }}{{ "0   " }}{{- val -}}
+		{%- else -%}
+                    {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
+		{%- endif -%}
+		{%- set mid.counter = mid.counter + 1 -%}
+                {%- set cursor.position_gru = cursor.position_gru + 4 + (padding | length) + (val | string | length) -%}
             {%- else -%}
                 {%- set val = format_float(line_dict.get(element), 3) -%}
                 {%- set padding = " " * (8 - val | string | length) -%}
+                {{- padding }}{{- val -}}
+                {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
             {%- endif -%}
             {# print info #}
-            {{- padding }}{{- val -}}
-            {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
         {%- endfor -%}
         {%- set line_comment = gru_block.get(comments).get(line_str) -%}
         {%- set comment_padding = calculate_padding(comment_col, cursor.position_gru) -%}

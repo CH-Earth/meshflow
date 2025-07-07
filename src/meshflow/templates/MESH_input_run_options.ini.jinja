@@ -93,9 +93,15 @@
     {% if val is mapping %}
         {% set result.basin_forcing_flag = '' %}
         {% for k, v in val.items() %}
-            {% set result.basin_forcing_flag = result.basin_forcing_flag + k | string + '=' + v | string %}
-            {% if not loop.last %}
-                {% set result.basin_forcing_flag = result.basin_forcing_flag + ' ' %}
+	    {% if v %}
+                {% if k == 'format' %}
+                    {% set result.basin_forcing_flag = v | string %}
+                {% else %}
+                    {% set result.basin_forcing_flag = result.basin_forcing_flag + k | string + '=' + v | string %}
+                {% endif %}
+                {% if not loop.last %}
+                    {% set result.basin_forcing_flag = result.basin_forcing_flag + ' ' %}
+                {% endif %}
             {% endif %}
         {% endfor -%}
         {{- key }}{{ forcing_val_padding }}{{ result.basin_forcing_flag }}

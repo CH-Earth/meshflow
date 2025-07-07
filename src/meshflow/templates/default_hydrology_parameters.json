@@ -5,7 +5,7 @@
         "pwr": 2.37,
         "flz": 0.001
     },
-    "gru": {
+    "hydrology": {
         "zsnl": 0.05,
         "zpls": 0.06,
         "zplg": 0.2,

@@ -235,14 +235,19 @@ def _prepare_landcover_mesh(
 
     # remove zero-sum columns
     landcover = landcover.loc[:, landcover.sum(axis=0) > 0]
+
     # removing non-digit characters from columns, if any
     landcover.columns = [int(re.sub('\D', '', c)) for c in landcover.columns]
+
     # set column name for landcover classes
     landcover.columns.name = gru_dim
+
     # adding necessary MESH dummy landcover variable - Hard-coded
     landcover.insert(len(landcover.columns), dummy_col_name, dummy_col_value)
+
     # making an xarray.DataArray
     landcover_da = landcover.stack().to_xarray()
+
     # converting to xr.Dataset
     landcover_ds = landcover_da.to_dataset(name=landcover_ds_name)
 
@@ -270,9 +275,6 @@ def _set_min_values(
     ds : xarray.Dataset
         Dataset with minimum values set
     '''
-    # make a copy of the dataset
-    ds = ds.copy()
-
     # set the minimum values
     for var, val in min_values.items():
         ds[var] = xr.where(ds[var] <= val, val, ds[var])
@@ -295,6 +297,35 @@ def _fill_na_ds(
     # replacing NAs
     for var, val in na_values.items():
         ds[var] = xr.where(ds[var] == np.nan, val, ds[var])
+
+    return ds
+
+def _downcast_to_int(
+    ds: xr.Dataset,
+    int_vars: Iterable[str],
+) -> xr.Dataset:
+    '''Downcasts the variables of `ds` to int32 type
+    if they are not already int32.
+    
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Dataset object of interest
+    int_vars : Iterable[str]
+        Iterable of variable names to be downcasted to int32
+
+    Returns
+    -------
+    ds : xarray.Dataset
+        Dataset with specified variables downcasted to int32
+    '''
+    # make a copy of the dataset
+    ds = ds.copy()
+
+    # downcast to int32
+    for var in int_vars:
+        if var in ds and ds[var].dtype != np.int32:
+            ds[var] = ds[var].astype(np.int32)
 
     return ds
 
@@ -325,9 +356,7 @@ def prepare_mesh_ddb(
     landcover: pd.DataFrame,
     cat_dim: str,
     gru_dim: str,
-    gru_var: str,
     hru_dim: str,
-    hru_var: str,
     gru_names: Sequence[str],
     include_vars: Dict[str, str],
     attr_local: Dict[str, Dict[str, str]],
@@ -398,7 +427,7 @@ def prepare_mesh_ddb(
     '''
     # define necessary variables
     geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
-    landcover_var = 'landcover'  # landcover variable name in the object
+    landcover_var = 'landclass'  # landcover variable name in the object
 
     dummy_col = 9999  # MESH's dummy landcover class dimension/column name
     dummy_col_value = 0  # MESH's dummy landcover class value
@@ -418,8 +447,7 @@ def prepare_mesh_ddb(
     # make actual xarray.Dataset objects for `riv` and `cat`
     riv_ds, cat_ds = (_prepare_geodataframe_mesh(geodf,
                                                  cat_dim=cat_dim,
-                                                 geometry_dim=geometry_var,
-                                                 )
+                                                 geometry_dim=geometry_var)
                       for geodf in [riv, cat])
 
     # make xarray.Dataset object for `landcover`
@@ -443,7 +471,7 @@ def prepare_mesh_ddb(
         },
         "dims": gru_dim,
         "data_vars": {
-            "landcover_names": {
+            "landclass_names": {
                 "dims": gru_dim,
                 "data": [gru_names[c] for c in _gru_list[0:-1]] + ['Dump']
             },
@@ -470,16 +498,12 @@ def prepare_mesh_ddb(
         ddb = _fill_na_ds(ds=ddb,
                           na_values=fill_na)
 
-    # assinging minimum values for `ddb`
-    if min_values is not None:
-        ddb = _set_min_values(ds=ddb,
-                              min_values=min_values)
-
     # assigning local attributes for each variable
     if attr_local:
         for var, val in attr_local.items():
-            for attr, desc in val.items():
-                ddb[var].attrs[attr] = desc
+            if var in ddb:
+                for attr, desc in val.items():
+                    ddb[var].attrs[attr] = desc
 
     # assigning global attributes for `ddb`
     if attr_global:
@@ -504,6 +528,10 @@ def prepare_mesh_ddb(
 
     # if `to_units` is defined
     if ddb_to_units:
+        # if dimensionless values exists, pop them
+        ddb_to_units = {k: v for k, v in ddb_to_units.items()
+                        if v != 'dimensionless'}
+        # implement the conversion
         ddb = ddb.pint.to(units=ddb_to_units)
 
     # print the netCDF file
@@ -519,6 +547,28 @@ def prepare_mesh_ddb(
 
     # change the value of `gru` dimension
     ddb[gru_dim] = range(0, len(ddb[gru_dim]))
+
+    # # assinging minimum values for `ddb`
+    if min_values is not None:
+        # only apply to variables that are present in `ddb`
+        min_values = {k: v for k, v in min_values.items()
+                      if k in ddb}
+
+        # if min_values turns to be non-empty
+        if min_values:
+            for var, val in min_values.items():
+                ddb = ddb.where(ddb[var] > val,
+                                val,
+                                drop=False)
+
+    # downcast specific variables to int32 if exist
+    int_vars = ['IAK', 'Rank', 'Next']
+    for var in int_vars:
+        if var not in ddb:
+            int_vars.remove(var)
+
+    # calling the downcast function
+    ddb = _downcast_to_int(ddb, int_vars=int_vars)
 
     # assure the order of `hru_dim` is correct
     ddb = ddb.loc[{hru_dim: cat_dim_array}].copy()

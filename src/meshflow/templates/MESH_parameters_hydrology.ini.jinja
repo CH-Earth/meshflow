@@ -100,8 +100,8 @@
 {%- for gru_block in gru_dict -%}
     {# gru name is the key of the dictionary #}
     {%- set gru = gru_block.keys() | first | string -%}
-    {# title padding is always 3 whitespaces between GRU names #}
-    {%- if gru | string | length <= 5 -%}
+    {# title padding is always 3 or 6 whitespaces between GRU names #}
+    {%- if gru | length <= 5 -%}
         {%- set lengths.title_padding = 6 -%}
     {%- else -%}
 	{%- set lengths.title_padding = 3 -%}
@@ -110,19 +110,19 @@
     {# if exclamation point is not printed (the first GRU) #}
     {%- if title.gru == 0 -%}
         {# put exclamation point + 5 whitespaces + gru name #}
-        {{- "!" + (" " * 5 ) + gru -}}
+        {{- "!" + (" " * 5 ) + gru  + title_padding -}}
         {# no need to put exclamation point from now on #}
         {%- set title.gru = 1 -%}
         {# move the cursor to the end of GRU name line which consists of
         1 exclamation point + 5 whitespaces + gru name + title_padding length
         #}
-        {%- set cursor.gru = cursor.gru + 6 + (gru | length) -%}
+        {%- set cursor.gru = cursor.gru + 6 + (gru | length) + (lengths.title_padding) -%}
     {%- else -%}
-        {{- title_padding }}{{ gru -}}
+        {{ gru }}{{ title_padding -}}
         {# move the cursor to the end of GRU name line which consists of
         1 exclamation point + 5 whitespaces + gru name + title_padding length
         #}
-        {%- set cursor.gru = cursor.gru + (title_padding | length) + (gru | length) -%}
+        {%- set cursor.gru = cursor.gru + (lengths.title_padding) + (gru | length) -%}
     {%- endif -%}
 {%- endfor %}
 
@@ -142,14 +142,14 @@
         {%- set precision = 3 -%}
     {%- endif -%}
     {# iterate over each block and write `param' values #}
-    {%- for gru_block in gru_dict -%}
+    {% for gru_block in gru_dict %}
         {# define gru block name and dictionary #}
         {%- set gru_name = gru_block.keys() | first -%}
         {%- set gru_d = gru_block.get(gru_name) -%}
         {# define a list of these parameters #}
         {%- set param_val = format_float(gru_d.get(param | lower), precision) -%}
         {# print values #}
-        {%- if index.gru == 0 -%}
+        {% if index.gru == 0 %}
             {# define padding, 6 is because that where the first variable
             should be printed #}
             {%- set padding = calculate_padding(7, param | length) -%}
@@ -160,16 +160,27 @@
             {# the cursor value position #}
             {%- set cursor.val = cursor.val + (param | length) + (padding | length) + (param_val | string | length) -%}
             {# the cursor gru position #}
-            {%- set cursor.gru = cursor.gru + 7 + (lengths.title_padding) -%}
-        {%- else -%}
+            {%- if gru_name | string | length <= 5 -%}
+                {%- set lengths.title_padding = 6 -%}
+            {%- else -%}
+        	{%- set lengths.title_padding = 3 -%}
+            {%- endif -%}
+            {%- set cursor.gru = 6 + (lengths.title_padding) + (gru_name | string | length) -%}
+        {% else %}
             {# only print padding and param_val if variable name is already
                written #}
             {%- set padding = " " * (cursor.gru - cursor.val) -%}
-            {{ padding }}{{ param_val }}
+            {{ padding }}{{ param_val -}}
             {# the cursor value position #}
             {%- set cursor.val = cursor.gru + (param_val | string | length) -%}
             {# the cursor gru position #}
-            {%- set cursor.gru = cursor.gru + (gru_name | string | length) + (title_padding | length)-%}
-        {%- endif -%}
-    {%- endfor -%}
-{%- endfor -%}
+            {%- if gru_name | string | length <= 5 -%}
+                {%- set lengths.title_padding = 6 -%}
+            {%- else -%}
+        	{%- set lengths.title_padding = 3 -%}
+            {%- endif -%}
+            {%- set cursor.gru = cursor.gru + lengths.title_padding + (gru_name | string | length) -%}
+        {% endif %}
+    {% endfor %}
+
+{% endfor -%}
