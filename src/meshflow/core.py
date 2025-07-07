@@ -9,11 +9,13 @@ framework to the North American domain.
 """
 
 # third-party libraries
+import dateutil.parser
 import pandas as pd
 import numpy as np
 import geopandas as gpd
 import xarray as xr
 import pint
+import dateutil
 
 # built-in libraries
 from typing import (
@@ -30,6 +32,7 @@ import glob
 import os
 import shutil
 import warnings
+import datetime
 
 # local imports
 from ._default_attrs import (
@@ -651,22 +654,17 @@ class MESHWorkflow(object):
         class_gru = {}
         for gru in self.landcover.columns:
             # extract the GRU name, typically an integer
-            gru_name = int(gru.replace('frac_', ''))
+            gru_number = int(gru.replace('frac_', ''))
 
             # extract class names from the landcover_classes dictionary
-            if gru_name not in self.landcover_classes:
-                raise KeyError(f"GRU {gru_name} not found in landcover_classes")
-            class_name = self.landcover_classes[gru_name]
+            if gru_number not in self.landcover_classes:
+                raise KeyError(f"GRU `{gru_number}` not found in landcover_classes")
+            
+            mid = self._return_short_gru_name(self.landcover_classes[gru_number])
             # split the class name into a list of class names
             # e.g., 'needleleaf deciduous' -> ['needleleaf', 'deciduous']
-            class_name_list = class_name.split(' ')
-            # drop the non-informative words
-            class_name_list = [word for word in class_name_list if len(word) > 3]
-            # create an mid with a maximum length of 34 characters
-            mid = '_'.join([word[:4] for word in class_name_list])[:34]
-
             # build the gru dictionary for the gru block
-            class_gru[gru_name] = {
+            class_gru[gru_number] = {
                 'class': 'needleleaf', # default value for everything
                 'mid': mid,
             }
@@ -696,9 +694,134 @@ class MESHWorkflow(object):
         self,
         return_text: bool = False,
     ) -> Optional[str]:
+        
+        # build the routing dictionary
+        # if order is provided, use it
+        if hasattr(self, 'ddb_vars'):
+            if 'river_class' in self.ddb_vars:
+                river_classes = len(set(self.ddb_vars['river_class']))
+                if river_classes > 5:
+                    raise ValueError("`river_class` cannot have more than 5 "
+                                     "classes. Adjust the `ddb_vars`'s "
+                                     "`river_class` value.")
+
+        # if river_classes variable exist
+        if 'river_classes' in locals():
+            routing_dict = [dict() for i in range(river_classes)]
+        else:
+            routing_dict = [{}]
+
+        # build the GRU-dependent hydrology part
+        hydrology_dict = {int(k.replace('frac_', '')): {} for k in self.landcover.columns}
+
+        # If user provided more infomration, update these dictionaries
+        if 'hydrology_params' in self.settings:
+            # update the routing dictionary, assuming user has taken
+            # care of the order of classes
+            if 'routing' in self.settings['hydrology_params'] and \
+                len(self.settings['hydrology_params']['routing']) > 0:
+                    routing_dict = self.settings['hydrology_params']['routing']
+
+            # update the hydrology dictionary
+            if 'hydrology' in self.settings['hydrology_params']:
+                hydrology_dict = self.settings['hydrology_params']['hydrology']
+        
+        # build the hydrology text file
+        hydrology_text = utility.render_hydrology_template(
+            routing_params=routing_dict,
+            hydrology_params=hydrology_dict,
+        )
+
+        # if return is requested, return the hydrology text
+        if return_text:
+            return hydrology_text
+
         return
 
-    def init_options(self):
+    def init_options(
+        self,
+        return_text: bool = False,
+    ) -> Optional[str]:
+        """
+        Initialize the options text file for MESH
+        """
+
+        # build the options dictionary
+        # identify the forcing variables
+        # forcing start date
+        forcing_start_date = self.settings['core']['forcing_start_date']
+        forcing_start_date = self.format_date(forcing_start_date, '%Y%m%d')
+
+        # extract simulation dates
+        if 'simulation_start_date' in self.settings['core']:
+            start_date = self.settings['core']['simulation_start_date']
+            start_date = dateutil.parser.parse(start_date)
+        else:
+            start_date = dateutil.parser.parse(forcing_start_date)
+
+        # extract end date
+        if 'simulation_end_date' in self.settings['core']:
+            end_date = self.settings['core']['simulation_end_date']
+            end_date = dateutil.parser.parse(end_date)
+        else:
+            end_date = '2100-12-31 23:00:00'
+
+        # if multiple forcing files are used, then providing a list of forcing
+        # files is necessary, otherwise, just the default "MESH_forcing" for the
+        # fname in the forcing dictionary is enough
+        if self.settings['core']['forcing_files'] == 'multiple':
+            # if multiple forcing files are used, then providing a list of forcing
+            # files is necessary, otherwise, just the default "MESH_forcing" for the
+            # fname in the forcing dictionary is enough
+            forcing_name = ''
+            forcing_list = 'forcing_files_list'
+        else:
+            # if single forcing file is used, then just the default "MESH_forcing" for the
+            # fname in the forcing dictionary is enough
+            forcing_name = 'MESH_forcing'
+            forcing_list = ''
+
+        options_dict = {
+            "flags": {
+                "forcing": {
+                    "BASINSHORTWAVEFLAG": self.forcing_vars.get("shortwave_radiation"),
+                    "BASINHUMIDITYFLAG": self.forcing_vars.get("specific_humidity"),
+                    "BASINRAINFLAG": self.forcing_vars.get("precipitation"),
+                    "BASINPRESFLAG": self.forcing_vars.get("air_pressure"),
+                    "BASINLONGWAVEFLAG": self.forcing_vars.get("longwave_radiation"),
+                    "BASINWINDFLAG": self.forcing_vars.get("wind_speed"),
+                    "BASINTEMPERATUREFLAG": self.forcing_vars.get("air_temperature"),
+                    "BASINFORCINGFLAG": {
+                        "start_date": forcing_start_date,
+                        "hf": 60,
+                        "time_shift": -6,
+                        "fname": forcing_name,
+                    },
+                    "FORCINGLIST": forcing_list,
+                },
+                "etc": {
+                    "PBSMFLAG": "off",
+                    "TIMESTEPFLAG": 60,
+                },
+            },
+            "outputs": {
+                "result": "results",
+            },
+            "dates": {
+                "start_year": start_date.timetuple().tm_year,
+                "start_day": start_date.timetuple().tm_yday,
+                "start_hour": start_date.timetuple().tm_hour,
+                "end_year": end_date.timetuple().tm_year,
+                "end_day": end_date.timetuple().tm_yday,
+                "end_hour": end_date.timetuple().tm_hour,
+            },
+        }
+
+        self.options_text = utility.render_run_options_template(options_dict)
+
+        if return_text:
+            return self.options_text
+        
         return
 
     def save(self, output_dir):
@@ -865,6 +988,32 @@ class MESHWorkflow(object):
         ds = ds.loc[{self.hru_dim: self.main_seg}].copy()
 
         return ds
+
+    def _return_short_gru_name(
+        self,
+        string: str,
+    ) -> str:
+        """
+        Return a short name for the GRU based on the class name
+        """        
+        class_name_list = string.split(' ')
+        # drop the non-informative words
+        class_name_list = [word for word in class_name_list if len(word) > 3]
+        # create an short_name with a maximum length of 34 characters
+        short_name = '_'.join([word[:4] for word in class_name_list])[:34]
+
+        return short_name
+
+    def format_date(
+        self,
+        date_str,
+        date_format='%Y-%m-%d',
+    ) -> str:
+        """
+        Convert a date string to 'yyyymmdd' format, handling various formats"""
+        dt = dateutil.parser.parse(date_str)
+
+        return dt.strftime(date_format)
 
     def _progress_bar():
         return

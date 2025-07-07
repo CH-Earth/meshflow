@@ -46,6 +46,7 @@ dependencies = [
   "netCDF4>=1.6.4",
   "cdo>=1.5.6",
   "Jinja2>=3.1.4",
+  "dateutil>=2.9.0",
 ]
 
 [project.urls]

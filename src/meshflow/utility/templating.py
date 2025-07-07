@@ -152,6 +152,12 @@ def render_class_template(
         populating_list.append(it)
 
     # update the class parameters with the populated list
+    # gru_block['vars'] is populated based on the assumption that
+    # in Python3.7+, the dictionaries maintain insertion order
+    # so the order of GRU blocks in the CLASS file is preserved
+    # as per the order of class_grus dictionary
+    # this is important for the MESH model to read the CLASS file correctly
+    # and also needs consistency between various input files
     gru_block.update({'vars': populating_list})
 
     # update case block
@@ -183,8 +189,8 @@ def render_class_template(
 
 
 def render_hydrology_template(
-    routing_params: Dict[str, Any],
-    hydrology_params: Dict[str, Any],
+    routing_params: Dict[str, Any] = {},
+    hydrology_params: Dict[str, Any] = {},
     default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS,
     template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY,
 ) -> str:
