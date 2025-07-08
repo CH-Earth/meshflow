@@ -300,8 +300,6 @@ def render_run_options_template(
     template = environment.get_template(template_run_options_path)
 
     # create content
-    content = template.render(
-        options_dict = options,
-    )
+    content = template.render(options_dict = options)
 
     return content

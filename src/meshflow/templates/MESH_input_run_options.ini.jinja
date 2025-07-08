@@ -68,7 +68,12 @@
 {% set total_elements = namespace(flags=0) %}
 {% for key, sub_dict in options_dict['settings']['flags'].items() %}
     {% if sub_dict is mapping %}
-        {% set total_elements.flags = total_elements.flags + sub_dict | length %}
+        {% for k, v in sub_dict.items() %}
+            {# if the value is a string, it is not a flag #}
+            {% if v != '' %}
+                {% set total_elements.flags = total_elements.flags + 1 %}
+            {% endif %}
+        {% endfor %}
     {% endif %}
 {% endfor %}
 {# Since the formatting of flag number is I5, proper indentation is required #}
@@ -106,7 +111,9 @@
         {% endfor -%}
         {{- key }}{{ forcing_val_padding }}{{ result.basin_forcing_flag }}
     {% else %}
-        {{- key }}{{ forcing_val_padding }}{{ val }}
+        {% if val != '' %}
+            {{- key }}{{ forcing_val_padding }}{{ val }}
+        {% endif %}
     {% endif %}
 {% endfor %}
 {#

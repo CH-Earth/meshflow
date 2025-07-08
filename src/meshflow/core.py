@@ -20,7 +20,7 @@ import dateutil
 # built-in libraries
 from typing import (
     Dict,
-    Sequence,
+    Any,
     Union,
     Optional,
 )
@@ -326,7 +326,7 @@ class MESHWorkflow(object):
         self.init()
 
         # Generate drainage database
-        self.init_ddb()
+        self.init_ddb() # creates self.ddb automatically
 
         # Generate forcing data
         if self.settings['core']['forcing_files'] == 'multiple':
@@ -339,17 +339,20 @@ class MESHWorkflow(object):
             if save_path is None:
                 raise ValueError("`save_path` cannot be None when processing multiple forcing files.")
 
-            self.init_forcing(save=True, save_path=save_path)
+            # hard-coded 'forcings' path in the `save_path` path
+            self.init_forcing(save=True, save_path=os.path.join(save_path, 'forcings'))
 
         else:
-            self.init_forcing(save=False)
+            self.init_forcing(save=False) # creates self.forcing automatically
 
         # 3 generate land-cover dependant setting files for MESH
-        self.init_class()
+        self.class_text = self.init_class(return_text=True)
 
         # 4 generate other setting files for MESH
-        self.init_settings()
+        self.hydrology_text = self.init_hydrology(return_text=True)
 
+        # 5 generate run options for MESH
+        self.run_options_text = self.init_options(return_text=True)
 
         return
 
@@ -781,6 +784,38 @@ class MESHWorkflow(object):
             forcing_name = 'MESH_forcing'
             forcing_list = ''
 
+        # check the time-zone of the forcing file and the target time-zone to 
+        # calculate the time-difference in hours
+        if 'forcing_time_zone' in self.settings['core']:
+            forcing_time_zone = self.settings['core']['forcing_time_zone']
+        else:
+            forcing_time_zone = 'UTC'
+            warnings.warn(
+                "No `forcing_time_zone` provided in the settings. "
+                "Assuming UTC time zone.",
+                UserWarning,
+            )
+
+        # check the model time-zone
+        if 'model_time_zone' in self.settings['core']:
+            model_time_zone = self.settings['core']['model_time_zone']
+        else:
+            model_time_zone = 'UTC'
+            warnings.warn(
+                "No `model_time_zone` provided in the settings. "
+                "Assuming UTC time zone.",
+                UserWarning,
+            )
+
+        # calculate the time difference in hours
+        time_diff = utility.calculate_time_difference(
+            initial_time_zone=forcing_time_zone,
+            target_time_zone=model_time_zone
+        )
+
+        # if integer, turn into an integer
+        time_diff = self.maybe_int(time_diff)
+
         options_dict = {
             "flags": {
                 "forcing": {
@@ -793,15 +828,15 @@ class MESHWorkflow(object):
                     "BASINTEMPERATUREFLAG": self.forcing_vars.get("air_temperature"),
                     "BASINFORCINGFLAG": {
                         "start_date": forcing_start_date,
-                        "hf": 60,
-                        "time_shift": -6,
+                        "hf": 60, # FIXME: hardcoded value for now
+                        "time_shift": time_diff,
                         "fname": forcing_name,
                     },
                     "FORCINGLIST": forcing_list,
                 },
                 "etc": {
                     "PBSMFLAG": "off",
-                    "TIMESTEPFLAG": 60,
+                    "TIMESTEPFLAG": 60, # FIXME: hardcoded value for now
                 },
             },
             "outputs": {
@@ -825,36 +860,61 @@ class MESHWorkflow(object):
         return
 
     def save(self, output_dir):
-        """Save the drainage databse, and forcing files to output_dir path
+        """
+        Save the drainage database, forcing files, and configuration files to
+        the specified output directory.
+
+        This method exports the model's drainage database and forcing files in
+        NetCDF or text format, copies default setting files, and writes
+        configuration files required for the model setup.
 
         Parameters
         ----------
-        output_dir : str
-          path where the set up model will be saved.
+        output_dir : str or PathLike
+            Path to the directory where the model setup and associated files will be saved.
 
         Returns
         -------
         None
-        """
-        # MESH specific variable names
-        ddb_file = 'MESH_drainage_database.nc'
-        forcing_file = 'MESH_forcing.nc'
+            This method does not return any value. Files are written to the specified output directory.
 
+        Notes
+        -----
+        - If a single forcing file is used, it is saved as 'MESH_forcing.nc' in NetCDF format.
+        - If multiple forcing files are used, a list of their paths is saved as 'forcing_files_list.txt'.
+        - Default setting files from the package are copied to the output directory.
+        - Additional configuration files such as CLASS, hydrology, and run options are saved as .ini files.
+        """
+
+        # saving drainage database
+        ddb_file = 'MESH_drainage_database.nc'
         # printing drainage database netcdf file
         self.ddb.to_netcdf(os.path.join(output_dir, ddb_file))
 
-        # necessary operations on the xarray.Dataset self.focring object
-        self._modify_forcing_encodings()
-        # printing forcing netcdf file
-        self.forcing.to_netcdf(os.path.join(output_dir, forcing_file),
-                               format='NETCDF4_CLASSIC',
-                               unlimited_dims=['time'])
-        # copy crude setting files with a warning
-        warnings.warn(
-            "MESH settings need manual adjustments. Automation" +
-            " is a work in progress...",
-            UserWarning,
-        )
+        # saving forcing files
+        if self.settings['core']['forcing_files'] == 'single':
+            forcing_file = 'MESH_forcing.nc'
+            # necessary operations on the xarray.Dataset self.focring object
+            self._modify_forcing_encodings()
+            # printing forcing netcdf file
+            self.forcing.to_netcdf(
+                os.path.join(output_dir, forcing_file),
+                format='NETCDF4_CLASSIC',
+                unlimited_dims=['time'])
+
+        else:
+            # meaning multiple forcing files are used, and they have already been saved
+            # during the initialization of the forcing object, so just creating a list
+            # files and saving it under save_path/forcing_files_list.txt
+            forcing_file = 'forcing_files_list.txt'
+            # creating a list of forcing files
+            forcing_files = sorted(glob.glob(self.forcing_files))
+            # writing the forcing files to a text file
+            with open(os.path.join(output_dir, forcing_file), 'w') as f:
+                for file in forcing_files:
+                    f.write(f"{file}\n")
+
+        # copy crude setting files that are not automated YET
         pkgdir = sys.modules['meshflow'].__path__[0]
         setting_path = os.path.join(pkgdir, 'default_settings')
         for f in glob.glob(os.path.join(setting_path, '*')):
@@ -862,6 +922,21 @@ class MESHWorkflow(object):
                 shutil.copy2(f, output_dir)
         os.makedirs(os.path.join(output_dir, 'results'),
                    exist_ok=True)
+
+        # save the class text file
+        class_file = 'MESH_parameters_CLASS.ini'
+        with open(os.path.join(output_dir, class_file), 'w') as f:
+            f.write(self.class_text)
+
+        # save the hydrology text file
+        hydrology_file = 'MESH_parameters_hydrology.ini'
+        with open(os.path.join(output_dir, hydrology_file), 'w') as f:
+            f.write(self.hydrology_text)
+
+        # save the run options text file
+        run_options_file = 'MESH_input_run_options.ini'
+        with open(os.path.join(output_dir, run_options_file), 'w') as f:
+            f.write(self.run_options_text)
 
         return
 
@@ -1014,6 +1089,12 @@ class MESHWorkflow(object):
         dt = dateutil.parser.parse(date_str)
 
         return dt.strftime(date_format)
+
+    def maybe_int(self, x: Any):
+        assert isinstance(x, (int, float)), "Input must be an int or float"
+        if isinstance(x, float) and x.is_integer():
+            return int(x)
+        return x
 
     def _progress_bar():
         return

@@ -55,6 +55,10 @@ ddb_local_attrs_default = {
     'LandUse': {
         'standard_name': 'Landuse classification name',
     },
+    'IAK': {
+        'standard_name': 'IAK',
+        'long_name': 'River class number (IAK)',
+    },
 }
 
 

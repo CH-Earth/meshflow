@@ -3,17 +3,21 @@ Containing important functions for preparing "forcing" database for MESH
 models
 """
 
-
+# import third-party libraries
 import cdo  # binary required >2.2.1
 import xarray as xr  # requires xarray >2023.7.0
 import pint_xarray  # requires typing_extensions >4.7.1
 import pint  # pint >0.22
 
+# import built-in libraries
 from typing import (
     Sequence,
     Dict,
     Optional,
 )
+
+from zoneinfo import ZoneInfo
+from datetime import datetime
 
 
 def prepare_mesh_forcing(
@@ -181,3 +185,55 @@ def freq_long_name(
         raise ValueError(f"frequency value \'{freq_alias}\' is not"
                          "acceptable")
     return
+
+def calculate_time_difference(
+    initial_time_zone: str,
+    target_time_zone: str
+) -> int | float:
+    """Calculates the time difference in hours between two time zones.
+    Parameters
+    ----------
+    initial_time_zone : str
+        The initial time zone in the format 'UTC±HH:MM'.
+    target_time_zone : str
+        The target time zone in the format 'UTC±HH:MM'.
+    
+    Returns
+    -------
+    int | float
+        The time difference in hours. If the time zones are the same, returns 0.
+
+    Raises
+    ------
+    ValueError
+        If the time zone format is incorrect or if the time zones are not valid.
+
+    Notes
+    -----
+    - Timezone naming scheme (TZ) follows IANA's convention found at the
+        following link (version 2025b):
+        https://data.iana.org/time-zones/releases/tzdb-2025b.tar.lz
+    """
+    # Routine error checks
+    assert isinstance(initial_time_zone, str), "forcing time zone needs to be of dtype `str`."
+    assert isinstance(target_time_zone, str), "target time zone needs to be of dtype `str`."
+
+    # Define the datetime you want to compare (current time in UTC)
+    dt = datetime.now(tz=ZoneInfo("UTC"))
+
+    # Specify the IANA time zones
+    tz1 = ZoneInfo(initial_time_zone)
+    tz2 = ZoneInfo(target_time_zone)
+
+    # Convert to target time zones
+    dt_tz1 = dt.astimezone(tz1)
+    dt_tz2 = dt.astimezone(tz2)
+
+    # Get the UTC offsets
+    offset1 = dt_tz1.utcoffset()
+    offset2 = dt_tz2.utcoffset()
+
+    # Calculate the time difference
+    diff = offset2 - offset1
+
+    return diff.total_seconds() / 3600  # Convert seconds to hours
