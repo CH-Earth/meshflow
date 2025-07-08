@@ -274,8 +274,7 @@ class MESHWorkflow(object):
         Constructor to use a JSON file path
         """
         with open(json_file) as f:
-            json_dict = json.load(f,
-                                  object_hook=MESHWorkflow._easymore_decoder)
+            json_dict = json.load(f, object_hook=MESHWorkflow._json_decoder)
 
         return cls.from_dict(json_dict)
 
@@ -311,9 +310,19 @@ class MESHWorkflow(object):
         elif isinstance(obj, str):
             if '$' in obj:
                 return MESHWorkflow._env_var_decoder(obj)
+            if MESHWorkflow._is_valid_integer(obj):
+                return int(obj)
         elif isinstance(obj, dict):
-            return {k: MESHWorkflow._json_decoder(v) for k, v in obj.items()}
+            return {MESHWorkflow._json_decoder(k): MESHWorkflow._json_decoder(v) for k, v in obj.items()}
         return obj
+    
+    @staticmethod
+    def _is_valid_integer(s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
 
     def run(
         self,
