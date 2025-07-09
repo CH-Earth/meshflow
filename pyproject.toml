@@ -40,18 +40,22 @@ dependencies = [
   "pandas>=1.4.0",
   "numpy>=1.22.2",
   "typing_extensions>=4.7.1",
-  "hydrantpy>=0.1.0-dev0",
+  "hydrant>=0.1.0-dev0",
   "netCDF4>=1.6.4",
   "cdo>=1.5.6",
   "Jinja2>=3.1.4",
-  "dateutil>=2.9.0",
+  "python-dateutil>=2.9.0",
   "pytz>=2025.2",
+  "click>=8.2.1",
 ]
 
 [project.urls]
 Documentation = "https://github.com/unknown/meshflow#readme"
 Issues = "https://github.com/unknown/meshflow/issues"
 Source = "https://github.com/unknown/meshflow"
+
+[project.scripts]
+meshflow = "meshflow.cli.main:main"
 
 [tool.hatch.version]
 path = "src/meshflow/__init__.py"
