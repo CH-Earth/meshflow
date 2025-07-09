@@ -2,6 +2,7 @@
 containing modules to set up MESH models
 """
 
+# third-party libraries
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -9,6 +10,7 @@ import geopandas as gpd
 
 from hydrant.topology import river_graph
 
+# built-in libraries
 from typing import (
     Sequence,
     Iterable,
@@ -16,6 +18,9 @@ from typing import (
     Dict,
 )
 import re
+
+# internal imports
+from .geom import _calculate_polygon_areas
 
 
 def extract_rank_next(
@@ -142,7 +147,6 @@ def extract_rank_next(
 
     return rank_var, next_var, seg_id, to_segment
 
-
 def _check_geo_obj_dtype(obj):
     # check `obj`'s dtype
     # if it is a path string
@@ -161,7 +165,6 @@ def _check_geo_obj_dtype(obj):
 
     # return a copy of the GeoDataFrame object
     return obj.copy()
-
 
 def _adjust_ids(
     seg_id: np.ndarray,
@@ -214,7 +217,6 @@ def _adjust_ids(
 
     return new_seg_id, new_ds_seg_id
 
-
 def _prepare_landcover_mesh(
     landcover: pd.DataFrame,
     cat_dim: str,
@@ -252,35 +254,6 @@ def _prepare_landcover_mesh(
     landcover_ds = landcover_da.to_dataset(name=landcover_ds_name)
 
     return landcover_ds
-
-
-def _set_min_values(
-    ds: xr.Dataset,
-    min_values: Dict[str, float],
-) -> xr.Dataset:
-    '''Setting minimum values (values of the `min_values` 
-    dictionary) for different variables (keys of the 
-    `min_values` dictionary).
-    
-    Parameters
-    ----------
-    ds : xarray.Dataset
-        Dataset object of interest
-    min_values : dict
-        a dictionary with keys corresponding to any of the `ds`
-        variables, and values corresponding to the minimums
-
-    Returns
-    -------
-    ds : xarray.Dataset
-        Dataset with minimum values set
-    '''
-    # set the minimum values
-    for var, val in min_values.items():
-        ds[var] = xr.where(ds[var] <= val, val, ds[var])
-
-    return ds
-
 
 def _fill_na_ds(
     ds: xr.Dataset,
@@ -329,7 +302,6 @@ def _downcast_to_int(
 
     return ds
 
-
 def _prepare_geodataframe_mesh(
     geodf: gpd.GeoDataFrame,
     cat_dim: str,
@@ -348,7 +320,6 @@ def _prepare_geodataframe_mesh(
     geodf = geodf.copy().drop(columns=geometry_dim)
 
     return geodf.set_index(cat_dim).to_xarray()
-
 
 def prepare_mesh_ddb(
     riv: gpd.GeoDataFrame,
@@ -439,24 +410,34 @@ def prepare_mesh_ddb(
     riv = _check_geo_obj_dtype(riv)
     cat = _check_geo_obj_dtype(cat)
 
+    # calculate catchment areas in meters squared
+    grid_area = _calculate_polygon_areas(
+        gdf=cat,
+        target_area_unit='m ** 2',
+        equal_area_crs='ESRI:54009'
+    )
+    grid_area['area'] = grid_area['area'].pint.magnitude
+
     # check `landcover` and `coords` dtypes
     if not isinstance(landcover, pd.DataFrame):
         raise TypeError("`landcover` and `coords` must be of type "
                         "pandas.DataFrame")
 
     # make actual xarray.Dataset objects for `riv` and `cat`
-    riv_ds, cat_ds = (_prepare_geodataframe_mesh(geodf,
-                                                 cat_dim=cat_dim,
-                                                 geometry_dim=geometry_var)
-                      for geodf in [riv, cat])
+    riv_ds, cat_ds, grid_area_ds = (_prepare_geodataframe_mesh(
+            geodf,
+            cat_dim=cat_dim,
+            geometry_dim=geometry_var)
+        for geodf in [riv, cat, grid_area])
 
     # make xarray.Dataset object for `landcover`
-    landcover_ds = _prepare_landcover_mesh(landcover,
-                                           cat_dim=cat_dim,
-                                           gru_dim=gru_dim,
-                                           landcover_ds_name=landcover_var,
-                                           dummy_col_name=dummy_col,
-                                           dummy_col_value=dummy_col_value)
+    landcover_ds = _prepare_landcover_mesh(
+        landcover,
+        cat_dim=cat_dim,
+        gru_dim=gru_dim,
+        landcover_ds_name=landcover_var,
+        dummy_col_name=dummy_col,
+        dummy_col_value=dummy_col_value)
 
     # add landcover classes names present in the setup to `ddb`
     # note that the last landcover class/name is a dummy one
@@ -480,10 +461,12 @@ def prepare_mesh_ddb(
     lc_names_da = xr.Dataset.from_dict(lc_names)
 
     # making a list of all xarray.Dataset objects
-    ds_list = [landcover_ds,
-               lc_names_da,
-               riv_ds,
-               cat_ds]
+    ds_list = [
+        landcover_ds,
+        lc_names_da,
+        riv_ds,
+        cat_ds,
+        grid_area_ds]
 
     # merging all xarray objects into one
     ddb = xr.combine_by_coords(ds_list, compat='override')
@@ -575,6 +558,6 @@ def prepare_mesh_ddb(
 
     # rename coordinate variable names to avoid confusion with dimension
     # names
-    ddb = ddb.drop_vars(gru_dim) 
+    ddb = ddb.drop_vars(gru_dim)
 
     return ddb

@@ -1,11 +1,11 @@
 """
-This package automates MESH model setup through a flexible workflow that can
-be set up using a JSON configuration file, a Command Line Interface (CLI) or
-directly inside a Python script/environment.
+This package automates the setup of MESH models through a flexible workflow.
+Configuration can be provided via a JSON file, Command Line Interface (CLI),
+or directly within a Python script or environment.
 
-Much of the work has been adopted from workflows developed by Dr. Ala Bahrami
-and Cooper Albano at the University of Saskatchewan applying MESH modelling
-framework to the North American domain.
+Much of the workflow is based on approaches developed by Dr. Ala Bahrami and
+Cooper Albano at the University of Saskatchewan for applying the MESH
+modelling framework to North American domains.
 """
 
 # third-party libraries
@@ -60,17 +60,81 @@ except ImportError:  # <Python3.8
 
 class MESHWorkflow(object):
     """
-    Main Workflow class of MESH
+    A comprehensive workflow automation class for MESH (Modélisation Environmentale 
+    Communautaire - Surface and Hydrology) model setup.
 
+    This class provides a flexible and automated approach to setting up MESH model 
+    configurations through various input methods including JSON configuration files, 
+    Command Line Interface (CLI), or direct Python scripting. It handles the 
+    preparation of geospatial data, forcing files, drainage databases, and model 
+    configuration files required for MESH model execution.
+
+    The workflow encompasses:
+    - Processing geofabric data (river networks and catchments)
+    - Preparing landcover classification data
+    - Processing meteorological forcing data
+    - Generating drainage database files
+    - Creating model configuration files (CLASS, hydrology, run options)
+    - Coordinate system transformations and unit conversions
+
+    This implementation is based on workflows developed by Dr. Ala Bahrami and 
+    Cooper Albano at the University of Saskatchewan for applying the MESH modelling 
+    framework to North American domains.
 
     Attributes
     ----------
+    riv : geopandas.GeoDataFrame
+        River network geometry and attributes
+    cat : geopandas.GeoDataFrame  
+        Catchment/subbasin geometry and attributes
+    landcover : pandas.DataFrame
+        Landcover fractions for each catchment and land class
+    forcing : xarray.Dataset
+        Processed meteorological forcing data (when single file mode)
+    ddb : xarray.Dataset
+        MESH drainage database containing catchment and routing parameters
+    coords : pandas.DataFrame
+        Centroid coordinates for each catchment
+    main_id : str
+        Primary identifier field name for catchments
+    ds_main_id : str
+        Downstream catchment identifier field name
+    forcing_vars : dict
+        Mapping of input forcing variable names to standard names
+    forcing_units : dict
+        Units of input forcing variables
+    ddb_vars : dict
+        Mapping of drainage database variable names
+    landcover_classes : dict
+        Mapping of landcover class codes to descriptive names
+    settings : dict
+        Model configuration settings and parameters
 
+    Examples
+    --------
+    Basic usage with file paths:
 
-    Parameters
-    ----------
+    >>> workflow = MESHWorkflow(
+    ...     riv='path/to/rivers.shp',
+    ...     cat='path/to/catchments.shp', 
+    ...     landcover='path/to/landcover.csv',
+    ...     landcover_classes={1: 'forest', 2: 'grassland'},
+    ...     forcing_files='path/to/forcing/*.nc',
+    ...     forcing_vars={'PRES': 'air_pressure', 'TEMP': 'air_temperature'},
+    ...     settings={'core': {'forcing_files': 'single'}}
+    ... )
+    >>> workflow.run(save_path='output_directory')
 
+    Using JSON configuration:
 
+    >>> workflow = MESHWorkflow.from_json_file('config.json')
+    >>> workflow.run(save_path='output_directory')
+
+    See Also
+    --------
+    from_dict : Create instance from dictionary
+    from_json : Create instance from JSON string  
+    from_json_file : Create instance from JSON file
     """
     # main constructor
     def __init__(
@@ -98,7 +162,135 @@ class MESHWorkflow(object):
         hru_dim: str = 'subbasin',
         outlet_value: int = -9999,
     ) -> None:
-        """Main constructor of MESHWorkflow
+        """Initialize a new MESHWorkflow instance for automated model setup.
+
+        Parameters
+        ----------
+        riv : str or PathLike
+            Path to the river network shapefile or geospatial data file containing
+            river segments with routing connectivity information.
+        cat : str or PathLike  
+            Path to the catchment/subbasin shapefile or geospatial data file containing
+            watershed boundaries and attributes.
+        landcover : str or PathLike
+            Path to the landcover CSV file containing fractional coverage of different
+            land classes for each catchment. Expected format has catchment IDs as 
+            index and columns prefixed with 'frac_' for each land class.
+        landcover_classes : dict of {str: str}
+            Mapping of landcover class codes/numbers to descriptive class names.
+            Keys should match the numeric suffixes in landcover file column names.
+            Example: {1: 'needleleaf forest', 2: 'grassland', 3: 'urban'}
+        forcing_files : str or PathLike, optional
+            Path to meteorological forcing files. Can be a single NetCDF file,
+            a glob pattern (e.g., '*.nc'), or a directory containing forcing files.
+            Required for full workflow execution.
+        forcing_vars : dict of {str: str}, optional
+            Mapping of input forcing variable names to MESH standard variable names.
+            Example: {'PRES': 'air_pressure', 'TEMP': 'air_temperature', 'PRECIP': 'precipitation'}
+        forcing_units : dict of {str: str}, optional
+            Units of the input forcing variables. Keys should match those in forcing_vars.
+            Example: {'air_pressure': 'Pa', 'air_temperature': 'K', 'precipitation': 'mm/h'}
+        ddb_vars : dict of {str: str}, optional
+            Mapping of drainage database variable names from input data to MESH standards.
+            Used for customizing which catchment attributes to include in the drainage database.
+        ddb_units : dict of {str: str}, optional
+            Units of drainage database variables. Keys should match those in ddb_vars.
+        main_id : str, optional
+            Name of the primary identifier field in the catchment and river data.
+            This field links river segments to their corresponding catchments.
+            Default behavior attempts to auto-detect common field names.
+        ds_main_id : str, optional  
+            Name of the downstream segment identifier field in river data.
+            Used to establish routing connectivity between river segments.
+            Default behavior attempts to auto-detect common field names.
+        forcing_to_units : dict of {str: str}, optional
+            Target units for forcing variables after conversion. Uses MESH defaults
+            if not specified. Example: {'air_pressure': 'Pa', 'air_temperature': 'K'}
+        forcing_local_attrs : dict of {str: str}, optional
+            Local (variable-level) attributes to apply to forcing variables in output files.
+            Uses package defaults if not specified.
+        forcing_global_attrs : dict of {str: str}, optional
+            Global (file-level) attributes to apply to forcing NetCDF files.
+            Uses package defaults if not specified.
+        ddb_local_attrs : dict of {str: str}, optional
+            Local (variable-level) attributes to apply to drainage database variables.
+            Uses package defaults if not specified.
+        ddb_global_attrs : dict of {str: str}, optional
+            Global (file-level) attributes to apply to drainage database NetCDF file.
+            Uses package defaults if not specified.
+        ddb_min_values : dict of {str: float}, optional
+            Minimum allowable values for drainage database variables.
+            Used for quality control and replacing unrealistic values.
+            Uses package defaults if not specified.
+        ddb_to_units : dict of {str: str}, optional
+            Target units for drainage database variables after conversion.
+            Uses MESH defaults if not specified.
+        settings : dict, optional
+            Comprehensive model configuration dictionary containing parameters for:
+            - Core settings (dates, file handling, time zones)
+            - CLASS parameters (measurement heights, land surface physics)
+            - Hydrology parameters (routing, subsurface processes)
+            Required for full workflow execution. Can be loaded from JSON files.
+        gru_dim : str, optional, default='NGRU'
+            Dimension name for Group Response Units (land classes) in output files.
+            Typically does not need to be changed unless using custom MESH builds.
+        hru_dim : str, optional, default='subbasin'
+            Dimension name for Hydrologic Response Units (catchments) in output files.
+            Should match the primary catchment identifier dimension.
+        outlet_value : int, optional, default=-9999
+            Sentinel value used to identify outlet/terminal segments in the river network.
+            Segments with this value in the downstream ID field are treated as outlets.
+
+        Raises
+        ------
+        TypeError
+            If dictionary parameters are not of type dict when provided.
+        FileNotFoundError
+            If required input files (riv, cat, landcover) cannot be found.
+        KeyError
+            If required keys are missing from landcover_classes or settings dictionaries.
+        ValueError
+            If data validation fails (e.g., mismatched IDs between files).
+
+        Notes
+        -----
+        The constructor performs lazy loading of geospatial files - data is read when
+        the instance is created but heavy processing is deferred until run() is called.
+        
+        All file paths support environment variable expansion using the pattern $VAR/
+        where VAR is an environment variable name.
+
+        The workflow expects specific data formats:
+        - River and catchment files: Any format readable by GeoPandas (Shapefile, GeoPackage, etc.)
+        - Landcover file: CSV with catchment IDs as index, columns named 'frac_<class_number>'
+        - Forcing files: NetCDF format with time dimension and spatial coverage
+
+        Examples
+        --------
+        Minimal setup for testing:
+        
+        >>> workflow = MESHWorkflow(
+        ...     riv='rivers.shp',
+        ...     cat='catchments.shp', 
+        ...     landcover='landcover.csv',
+        ...     landcover_classes={1: 'forest', 2: 'grassland'},
+        ...     settings={'core': {'forcing_files': 'single'}}
+        ... )
+
+        Complete setup with forcing data:
+        
+        >>> workflow = MESHWorkflow(
+        ...     riv='rivers.shp',
+        ...     cat='catchments.shp',
+        ...     landcover='landcover.csv', 
+        ...     landcover_classes={1: 'needleleaf forest', 2: 'grassland', 3: 'urban'},
+        ...     forcing_files='/data/forcing/*.nc',
+        ...     forcing_vars={'PRES': 'air_pressure', 'TEMP': 'air_temperature'},
+        ...     forcing_units={'air_pressure': 'hPa', 'air_temperature': 'C'},
+        ...     main_id='COMID',
+        ...     ds_main_id='NextDownID',
+        ...     settings=my_settings_dict
+        ... )
         """
         # dictionary to check types
         _dict_items = [forcing_units,
@@ -421,6 +613,7 @@ class MESHWorkflow(object):
         # Similarly for the `landclass` variable, while its naming scheme is
         # an outlier
         ddb_vars_renamed['landclass'] = mesh_drainage_database_names_default['landclass']
+        ddb_vars_renamed['area'] = 'GridArea' # FIXME: this needs to be automated
 
         # similarly for `ddb_units`
         for k, v in self.ddb_units.items():
@@ -460,6 +653,11 @@ class MESHWorkflow(object):
 
         # ad-hoc manipulations on the drainage database
         self.ddb = self._adhoc_mesh_vars(self.ddb)
+
+        # assign the `GridArea` units attributes
+        # FIXME: this needs to be changed to pint's
+        #        `pint.Quantity` object
+        self.ddb['GridArea'].attrs['units'] = 'm ** 2'
 
         if return_ds:
             return self.ddb
@@ -521,6 +719,22 @@ class MESHWorkflow(object):
         _ureg.define('degrees_north = 1 * degree')
         _ureg.define('degrees_east = 1 * degree')
 
+                    
+        # forcing units need internal names for keys
+        forcing_units_renamed = {}
+        # renaming forcing units based on the provided forcing_vars
+        for k, v in self.forcing_units.items():
+            if k in self.forcing_vars:
+                new_k = self.forcing_vars[k]
+                forcing_units_renamed[new_k] = v
+
+        # same for forcing_to_units
+        forcing_to_units_renamed = {}
+        for k, v in self.forcing_to_units.items():
+            if k in self.forcing_vars:
+                new_k = self.forcing_vars[k]
+                forcing_to_units_renamed[new_k] = v
+
         # Generate forcing data
         # making a list of variables
         if self.settings['core']['forcing_files'] == 'multiple':
@@ -533,9 +747,10 @@ class MESHWorkflow(object):
             for forcing_file in files:
                 ds = utility.prepare_mesh_forcing(
                     path=forcing_file,
-                    variables=self.forcing_vars,
-                    units=self.forcing_units,
-                    to_units=self.forcing_to_units,
+                    variables=[v for k, v in self.forcing_vars.items()],
+                    hru_dim=self.hru_dim,
+                    units=forcing_units_renamed,
+                    to_units=forcing_to_units_renamed,
                     unit_registry=_ureg,
                     aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
@@ -571,9 +786,10 @@ class MESHWorkflow(object):
             # that the forcing files should be merged
             ds = utility.prepare_mesh_forcing(
                     path=self.forcing_files,
-                    variables=self.forcing_vars,
-                    units=self.forcing_units,
-                    to_units=self.forcing_to_units,
+                    variables=[v for v in self.forcing_vars.values()],
+                    hru_dim=self.hru_dim,
+                    units=forcing_units_renamed,
+                    to_units=forcing_to_units_renamed,
                     unit_registry=_ureg,
                     aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
@@ -828,13 +1044,13 @@ class MESHWorkflow(object):
         options_dict = {
             "flags": {
                 "forcing": {
-                    "BASINSHORTWAVEFLAG": self.forcing_vars.get("shortwave_radiation"),
-                    "BASINHUMIDITYFLAG": self.forcing_vars.get("specific_humidity"),
-                    "BASINRAINFLAG": self.forcing_vars.get("precipitation"),
-                    "BASINPRESFLAG": self.forcing_vars.get("air_pressure"),
-                    "BASINLONGWAVEFLAG": self.forcing_vars.get("longwave_radiation"),
-                    "BASINWINDFLAG": self.forcing_vars.get("wind_speed"),
-                    "BASINTEMPERATUREFLAG": self.forcing_vars.get("air_temperature"),
+                    "BASINSHORTWAVEFLAG": f'name_var={self.forcing_vars.get("shortwave_radiation")}',
+                    "BASINHUMIDITYFLAG": f'name_var={self.forcing_vars.get("specific_humidity")}',
+                    "BASINRAINFLAG": f'name_var={self.forcing_vars.get("precipitation")}',
+                    "BASINPRESFLAG": f'name_var={self.forcing_vars.get("air_pressure")}',
+                    "BASINLONGWAVEFLAG": f'name_var={self.forcing_vars.get("longwave_radiation")}',
+                    "BASINWINDFLAG": f'name_var={self.forcing_vars.get("wind_speed")}',
+                    "BASINTEMPERATUREFLAG": f'name_var={self.forcing_vars.get("air_temperature")}',
                     "BASINFORCINGFLAG": {
                         "start_date": forcing_start_date,
                         "hf": 60, # FIXME: hardcoded value for now
@@ -894,6 +1110,15 @@ class MESHWorkflow(object):
         - Default setting files from the package are copied to the output directory.
         - Additional configuration files such as CLASS, hydrology, and run options are saved as .ini files.
         """
+        # Make the final output directory absolute
+        output_dir = os.path.abspath(output_dir)
+        # Check if the output directory exists, if not, create it
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        # create the final results directory
+        os.makedirs(os.path.join(output_dir, 'results'),
+            exist_ok=True)
 
         # saving drainage database
         ddb_file = 'MESH_drainage_database.nc'
@@ -917,7 +1142,7 @@ class MESHWorkflow(object):
             # files and saving it under save_path/forcing_files_list.txt
             forcing_file = 'forcing_files_list.txt'
             # creating a list of forcing files
-            forcing_files = sorted(glob.glob(self.forcing_files))
+            forcing_files = sorted(glob.glob(os.path.join(output_dir, 'forcings', '*.nc*')))
             # writing the forcing files to a text file
             with open(os.path.join(output_dir, forcing_file), 'w') as f:
                 for file in forcing_files:
@@ -929,8 +1154,6 @@ class MESHWorkflow(object):
         for f in glob.glob(os.path.join(setting_path, '*')):
             if os.path.isfile(f):
                 shutil.copy2(f, output_dir)
-        os.makedirs(os.path.join(output_dir, 'results'),
-                   exist_ok=True)
 
         # save the class text file
         class_file = 'MESH_parameters_CLASS.ini'

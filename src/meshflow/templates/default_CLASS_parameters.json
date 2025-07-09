@@ -48,14 +48,14 @@
         },
         "soil": {
             "line14": {
-                "sand1": 0.5,
-                "sand2": 0.5,
-                "sand3": 0.5
+                "sand1": 50,
+                "sand2": 50,
+                "sand3": 50
             },
             "line15": {
-                "clay1": 0.2,
-                "clay2": 0.2,
-                "clay3": 0.2
+                "clay1": 20,
+                "clay2": 20,
+                "clay3": 20
             },
             "line16": {
                 "orgm1": 0,

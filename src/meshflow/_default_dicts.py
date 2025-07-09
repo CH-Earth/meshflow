@@ -20,7 +20,6 @@ mesh_drainage_database_units_default = {
     "rank": "dimensionless",
     "next": "dimensionless",
     "gru": "dimensionless",
-    "subbasin_area": "kilometer ** 2",
     "landclass": "dimensionless",
 }
 
@@ -43,7 +42,7 @@ mesh_drainage_database_names_default = {
     "river_class": "IAK",
     "rank": "Rank",
     "next": "Next",
-    "subbasin_area": "UnitArea",
+    "subbasin_area": "GridArea",
     "landclass": "GRU",
     'lat': 'lat',
     'lon': 'lon',

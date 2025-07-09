@@ -58,6 +58,8 @@ ddb_local_attrs_default = {
     'IAK': {
         'standard_name': 'IAK',
         'long_name': 'River class number (IAK)',
+        'coordinates': 'lon lat time',
+        'grid_mapping': 'crs',
     },
 }
 

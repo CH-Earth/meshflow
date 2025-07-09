@@ -24,6 +24,7 @@ def prepare_mesh_forcing(
     path: str,
     variables: Sequence[str],
     units: Dict[str, str],
+    hru_dim: Optional[str] = None,
     unit_registry: pint.UnitRegistry = None,
     to_units: Optional[Dict[str, str]] = None,
     aggregate: bool = False,
@@ -83,12 +84,6 @@ def prepare_mesh_forcing(
     [FIXME]: The merge functionality could become more comprehensive in future
     versions.
     """
-
-    # if variables dtype is not string, throw an exception
-    if not isinstance(variables, dict):
-        raise TypeError("`variables` must be a dictionary of string keys and "
-                        "values")
-
     # if `units` is not provided, throw an exception
     if not units:
         raise ValueError("`units` associated with `variables` elements must"
@@ -100,14 +95,11 @@ def prepare_mesh_forcing(
 
     if aggregate:
         cdo_obj = cdo.Cdo()  # CDO object
-        ds = cdo_obj.mergetime(input=path, returnXArray=list(variables.values()))  # Mergeing
+        ds = cdo_obj.mergetime(input=path, returnXArray=variables)  # Mergeing
     else:
         # if `aggregate` is False, we assume that the input files are already
         # in proper chunk format and we just read the file
         ds = xr.open_dataset(path)
-    
-    # rename easymore's output name
-    ds = ds.transpose().rename({v: k for k, v in variables.items()})
 
     # check to see if all the keys included in the `units` dictionary are
     # found inside the `variables` sequence
@@ -131,6 +123,10 @@ def prepare_mesh_forcing(
 
     # print the netCDF file
     ds = ds.pint.dequantify()
+
+    # rename remapped output name
+    var = [i for i in ds.dims.keys() if i != 'time']
+    ds = ds.transpose().rename({var[0]: hru_dim})
 
     # convert calendar to 'standard' based on MESH's input standard
     ds = ds.convert_calendar(calendar='standard')
