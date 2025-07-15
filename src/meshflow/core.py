@@ -16,6 +16,7 @@ import geopandas as gpd
 import xarray as xr
 import pint
 import dateutil
+import timezonefinder
 
 # built-in libraries
 from typing import (
@@ -1025,12 +1026,43 @@ class MESHWorkflow(object):
         if 'model_time_zone' in self.settings['core']:
             model_time_zone = self.settings['core']['model_time_zone']
         else:
-            model_time_zone = 'UTC'
+            # try extracting the time zone from the provided `cat` file
+            # calculate area's centroid coordinates---basically what is done
+            # in the `init_class` method
             warnings.warn(
                 "No `model_time_zone` provided in the settings. "
-                "Assuming UTC time zone.",
+                "Autodetecting the time zone using `timezonefinder` "
+                "based on the centroid of the catchment area.",
                 UserWarning,
             )
+            area_centroids = utility.extract_centroid(
+                self.cat.dissolve(),
+                obj_id=self.main_id
+            )
+            # assigning the latitude and longitude values
+            area_centroid_x = area_centroids['lon'][0]
+            area_centroid_y = area_centroids['lat'][0]
+            # extracing the model time zone from the coordinates
+            model_time_zone = timezonefinder.TimezoneFinder().timezone_at(
+                lat=area_centroid_y,
+                lng=area_centroid_x
+            )
+            # Print the model time zone
+            if model_time_zone:
+                warnings.warn(
+                    f"Autodetected model time zone: {model_time_zone}",
+                    UserWarning,
+                )
+            # if the model time zone is None, then assume UTC
+            # and warn the user
+            else:
+                model_time_zone = 'UTC'
+                warnings.warn(
+                    "No `model_time_zone` provided in the settings and"
+                    " autodetection using `timezonefinder` failed."
+                    " Assuming UTC time zone.",
+                    UserWarning,
+                )
 
         # calculate the time difference in hours
         time_diff = utility.calculate_time_difference(
