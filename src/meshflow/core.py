@@ -1085,7 +1085,7 @@ class MESHWorkflow(object):
                     "BASINTEMPERATUREFLAG": f'name_var={self.forcing_vars.get("air_temperature")}',
                     "BASINFORCINGFLAG": {
                         "start_date": forcing_start_date,
-                        "hf": 60, # FIXME: hardcoded value for now
+                        "hf": 60, # FIXME: hardcoded value, need to be changed
                         "time_shift": time_diff,
                         "fname": forcing_name,
                     },
@@ -1093,7 +1093,7 @@ class MESHWorkflow(object):
                 },
                 "etc": {
                     "PBSMFLAG": "off",
-                    "TIMESTEPFLAG": 60, # FIXME: hardcoded value for now
+                    "TIMESTEPFLAG": 60, # FIXME: hardcoded value, need to be changed
                 },
             },
             "outputs": {
