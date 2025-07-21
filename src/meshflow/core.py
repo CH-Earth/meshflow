@@ -9,6 +9,7 @@ modelling framework to North American domains.
 """
 
 # third-party libraries
+from ast import Tuple
 import dateutil.parser
 import pandas as pd
 import numpy as np
@@ -24,6 +25,7 @@ from typing import (
     Any,
     Union,
     Optional,
+    Tuple,
 )
 
 import re
@@ -140,11 +142,11 @@ class MESHWorkflow(object):
     # main constructor
     def __init__(
         self,
-        riv: PathLike,
-        cat: PathLike,
-        landcover: PathLike,
+        riv: PathLike, # type: ignore
+        cat: PathLike, # type: ignore
+        landcover: PathLike, # type: ignore
         landcover_classes: Dict[str, str],
-        forcing_files: PathLike = None,
+        forcing_files: PathLike = None, # type: ignore
         forcing_vars: Dict[str, str] = None,
         forcing_units: Dict[str, str] = None,
         ddb_vars: Dict[str, str] = None,
@@ -565,6 +567,11 @@ class MESHWorkflow(object):
         Initialize the MESH workflow by setting up drainage database and
         forcing objects
         """
+        # Add artificial river segments subsequent to the outlets to have
+        # MESH route the last segments properly, and also faciliate the 
+        # setup for single sites.
+        self.riv, self.cat, self.landcover = self._add_artificial_outlet_segments(self.riv, self.cat, self.landcover)
+
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
         # This will assign: 1) self.rank, 2) self.next, 3) self.main_seg,
@@ -587,7 +594,7 @@ class MESHWorkflow(object):
     def init_ddb(
         self,
         return_ds = False,
-        save_path: Optional[PathLike] = None,
+        save_path: Optional[PathLike] = None, # type: ignore
     ) -> None:
         """
         Initialize the drainage database object
@@ -900,11 +907,11 @@ class MESHWorkflow(object):
 
         # update the class_gru dictionary with user inputs
         if 'class_params' in self.settings and 'grus' in self.settings['class_params']:
-            for gru, params in self.settings['class_params']['grus'].items():
+            for gru, gru_class in self.settings['class_params']['grus'].items():
                 # check if the gru is in the class_gru dictionary
                 if gru in class_gru:
                     # update the class_gru dictionary with user inputs
-                    class_gru[gru].update(params)
+                    class_gru[gru]['class'] = gru_class
                 else:
                     warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
 
@@ -928,7 +935,11 @@ class MESHWorkflow(object):
         # if order is provided, use it
         if hasattr(self, 'ddb_vars'):
             if 'river_class' in self.ddb_vars:
-                river_classes = len(set(self.ddb_vars['river_class']))
+                river_class_name = self.ddb_vars['river_class']
+
+                # extract the number of river classes
+                river_classes = len(set(self.riv[river_class_name].values))
+
                 if river_classes > 5:
                     raise ValueError("`river_class` cannot have more than 5 "
                                      "classes. Adjust the `ddb_vars`'s "
@@ -954,7 +965,7 @@ class MESHWorkflow(object):
             # update the hydrology dictionary
             if 'hydrology' in self.settings['hydrology_params']:
                 hydrology_dict = self.settings['hydrology_params']['hydrology']
-        
+
         # build the hydrology text file
         hydrology_text = utility.render_hydrology_template(
             routing_params=routing_dict,
@@ -1204,6 +1215,109 @@ class MESHWorkflow(object):
 
         return
 
+    def _add_artificial_outlet_segments(
+        self,
+        riv: gpd.GeoDataFrame,
+        cat: gpd.GeoDataFrame,
+        landcover: pd.DataFrame,
+    ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+        """
+        Add artificial river segments subsequent to the outlets to have MESH
+        route the last segments properly, and also facilitate the setup for
+        single sites.
+        """
+        # create a copy of the river segments
+        riv_copy = riv.copy()
+
+        # assign proper variable for outlet segments to be used
+        # in the workflow
+        outlet_segments = riv_copy[riv_copy[self.ds_main_id] == self.outlet_value]
+        outlet_segment_ids = outlet_segments[self.main_id].to_list()
+
+        # assign `main_id` as the index to facilitate the workflow
+        riv_copy.set_index(self.main_id, drop=False, inplace=True)
+
+        # artificial outlet segment id is one more than the
+        # maximum of existing segments, assuming IDs are integer
+        # values
+        artif_outlet_id = outlet_segment_ids[0] + 1
+
+        for outlet in outlet_segment_ids:
+            ## river stuff
+            # build preliminray data dictionary
+            riv_data = {
+                self.main_id: artif_outlet_id,
+                self.ds_main_id: 0,
+            }
+
+            # add other columns to the `riv_data` dictionary
+            cols = set(riv_copy.columns) - set([self.main_id, self.ds_main_id, 'geometry'])
+            for col in cols:
+                riv_data[col] = riv_copy.loc[outlet, col]
+
+            # create a pandas.Series
+            riv_s = pd.Series(riv_data, name=artif_outlet_id)
+
+            # assure the datatype makes sense
+            for col in cols:
+                riv_s = riv_s.astype(np.int64)
+
+            # add the new series to the `riv` object
+            riv_copy = pd.concat([riv_copy, riv_s.to_frame().T])
+
+            # assign the geometry value
+            riv_copy.loc[artif_outlet_id, 'geometry'] = riv_copy.loc[outlet, 'geometry']
+
+            # modify the `outlet` downstream value to be artif_outlet_id
+            riv_copy.loc[outlet, self.ds_main_id] = artif_outlet_id
+
+
+            ## catchment stuff
+            cat_copy = cat.copy()
+            # also add a dummy catchment value in `cat`
+            cat_copy.set_index(self.main_id, drop=False, inplace=True)
+
+            # create a new catchment with the same ID as the
+            # artificial outlet segment
+            cat_data = {
+                self.main_id: artif_outlet_id,
+            }
+
+            # add other columsn tot he `cat_data` dictionary
+            cols = set(cat_copy.columns) - set([self.main_id, 'geometry'])
+            for col in cols:
+                cat_data[col] = cat_copy.loc[outlet, col]
+
+            # create a pandas.Series ouf the `cat_data` dictionary
+            cat_s = pd.Series(cat_data, name=artif_outlet_id)
+
+            # add the new series to the `cat` object
+            cat_copy = pd.concat([cat_copy, cat_s.to_frame().T])
+
+            # assign proper data types to the series
+            cat_copy[self.main_id] = cat_copy[self.main_id].astype(np.int64)
+
+            # assign the geometry value
+            cat_copy.loc[artif_outlet_id, 'geometry'] = cat_copy.loc[outlet, 'geometry']
+
+            ## landcover stuff
+            # create a new landcover segment with the same ID as the
+            # artificial outlet segment
+            landcover_copy = landcover.copy()
+
+            # add an artificial landcover value for the new segment
+            landcover_copy.loc[artif_outlet_id] = landcover_copy.loc[outlet]
+
+            # increase the `artif_outlet_id` for the next
+            # outlet segment
+            artif_outlet_id += 1
+
+        # reset the index of the `riv` and `cat` objects
+        riv_copy.reset_index(drop=True, inplace=True)
+        cat_copy.reset_index(drop=True, inplace=True)
+
+        return riv_copy, cat_copy, landcover_copy
+
     def _init_idx_vars(self):
         """
         Initiating MESH variables such as `rank`, `next`, `main_seg`, and
@@ -1266,7 +1380,7 @@ class MESHWorkflow(object):
 
     def _modify_forcing_encodings(
         self,
-        ds: [xr.Dataset] = None,
+        ds: xr.Dataset = None,
     ) -> xr.Dataset:
         """Necessary adhoc modifications on the forcing object's
         encoding

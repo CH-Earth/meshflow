@@ -540,9 +540,9 @@ def prepare_mesh_ddb(
         # if min_values turns to be non-empty
         if min_values:
             for var, val in min_values.items():
-                ddb = ddb.where(ddb[var] > val,
-                                val,
-                                drop=False)
+                ddb[var] = ddb[var].where(ddb[var] > val,
+                                          val,
+                                          drop=False)
 
     # downcast specific variables to int32 if exist
     int_vars = ['IAK', 'Rank', 'Next']

@@ -25,7 +25,7 @@ mesh_drainage_database_units_default = {
 
 # Minimum values for drainage database parameters
 mesh_drainage_database_minimums_default = {
-    "slope": 1e-3,
+    "river_slope": 1e-3,
     "river_length": 1e-3,
     "subbasin_area": 1e-3,
 }
