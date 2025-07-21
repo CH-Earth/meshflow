@@ -20,8 +20,8 @@ def main(json_file, output_path):
         workflow.run()
 
         # Save results if output path is provided
-        if output:
-            click.echo(f"Saving results to {output}")
+        if output_path:
+            click.echo(f"Saving results to {output_path}")
             workflow.save(output_path)
         else:
             click.echo("No output path specified, results not saved")
