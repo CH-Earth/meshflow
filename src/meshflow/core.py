@@ -510,7 +510,7 @@ class MESHWorkflow(object):
         elif isinstance(obj, dict):
             return {MESHWorkflow._json_decoder(k): MESHWorkflow._json_decoder(v) for k, v in obj.items()}
         return obj
-    
+
     @staticmethod
     def _is_valid_integer(s):
         try:
@@ -570,7 +570,7 @@ class MESHWorkflow(object):
         # Add artificial river segments subsequent to the outlets to have
         # MESH route the last segments properly, and also faciliate the 
         # setup for single sites.
-        self.riv, self.cat, self.landcover = self._add_artificial_outlet_segments(self.riv, self.cat, self.landcover)
+        self.riv, self.cat, self.landcover, self.artif_correspondence = self._add_artificial_outlet_segments(self.riv, self.cat, self.landcover)
 
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
@@ -705,7 +705,7 @@ class MESHWorkflow(object):
         # Check if save is enabled and save_path is provided
         if save and save_path is None:
             raise ValueError("`save_path` cannot be None if `save` is True")
-        
+
         # if save_path is not None, make sure the directory exists
         if save_path is not None:
             # get the absolute path
@@ -727,7 +727,6 @@ class MESHWorkflow(object):
         _ureg.define('degrees_north = 1 * degree')
         _ureg.define('degrees_east = 1 * degree')
 
-                    
         # forcing units need internal names for keys
         forcing_units_renamed = {}
         # renaming forcing units based on the provided forcing_vars
@@ -762,11 +761,20 @@ class MESHWorkflow(object):
                     unit_registry=_ureg,
                     aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
-                    global_attrs=self.forcing_global_attrs
+                    global_attrs=self.forcing_global_attrs,
                 )
 
                 # modify adhoc mesh variables
                 ds = self._adhoc_mesh_vars(ds)
+
+                # for the artificial segments, we need to add the forcing
+                if hasattr(self, 'artif_correspondence'):
+                    for outlet, artif_outlet in self.artif_correspondence.items():
+                        for var in self.forcing_vars.values():
+                            ds[var] = ds[var].sel(subbasin=artif_outlet).where(
+                                ~ds[var].sel(subbasin=artif_outlet).isnull(),
+                                ds[var].sel(subbasin=outlet)
+                            ).combine_first(ds[var])
 
                 # modify time encoding of the forcing object, though MESH
                 # does not care about the time encoding anymore >r1860
@@ -801,10 +809,20 @@ class MESHWorkflow(object):
                     unit_registry=_ureg,
                     aggregate=self.settings['core']['forcing_files'],
                     local_attrs=self.forcing_local_attrs,
-                    global_attrs=self.forcing_global_attrs
+                    global_attrs=self.forcing_global_attrs,
                 )
+
             # modify adhoc mesh variables
             ds = self._adhoc_mesh_vars(ds)
+
+            # for the artificial segments, we need to add the forcing
+            if hasattr(self, 'artif_correspondence'):
+                for outlet, artif_outlet in self.artif_correspondence.items():
+                    for var in self.forcing_vars.values():
+                        ds[var] = ds[var].sel(subbasin=artif_outlet).where(
+                            ~ds[var].sel(subbasin=artif_outlet).isnull(),
+                            ds[var].sel(subbasin=outlet)
+                        ).combine_first(ds[var])
 
             # modify time encoding of the forcing object, though MESH
             # does not care about the time encoding anymore >r1860
@@ -1242,7 +1260,15 @@ class MESHWorkflow(object):
         # values
         artif_outlet_id = outlet_segment_ids[0] + 1
 
+        # correspondence dictionary
+        correspondence = {}
+
         for outlet in outlet_segment_ids:
+            # right off the bat, create a correspondence entry
+            # with the key being the outlet and the value being
+            # its artificial outlet segment ID
+            correspondence[outlet] = artif_outlet_id
+
             ## river stuff
             # build preliminray data dictionary
             riv_data = {
@@ -1316,7 +1342,7 @@ class MESHWorkflow(object):
         riv_copy.reset_index(drop=True, inplace=True)
         cat_copy.reset_index(drop=True, inplace=True)
 
-        return riv_copy, cat_copy, landcover_copy
+        return riv_copy, cat_copy, landcover_copy, correspondence
 
     def _init_idx_vars(self):
         """

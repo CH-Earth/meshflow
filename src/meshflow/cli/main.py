@@ -15,9 +15,15 @@ def main(json_file, output_path):
         click.echo(f"Loading workflow from {json_file}")
         workflow = MESHWorkflow.from_json_file(json_file)
 
-        # Execute the workflow
-        click.echo("Running workflow...")
-        workflow.run()
+
+        if workflow.settings['core']['forcing_files'] == 'multiple'
+            # Execute the workflow
+            click.echo("Running workflow...")
+            workflow.run(save_path=output_path)
+        else:
+            # Execute the workflow
+            click.echo("Running workflow...")
+            workflow.run()
 
         # Save results if output path is provided
         if output_path:
