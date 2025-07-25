@@ -30,7 +30,7 @@ mesh_drainage_database_minimums_default = {
     "subbasin_area": 1e-3,
 }
 
-# Default settings for mesh settups
+# Default settings for mesh setups
 mesh_settings_default = {
      "forcing_files": "multiple",
 }

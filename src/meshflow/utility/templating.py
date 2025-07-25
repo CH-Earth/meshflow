@@ -1,6 +1,10 @@
 """
-This module provides functions to generate textual configuration files
-using Jinja2 templating engine for MESH model instantiations.
+Utility functions for generating MESH model configuration files
+using the Jinja2 templating engine.
+
+This module provides helpers to render CLASS, hydrology, and run options
+configuration files from Python dictionaries, leveraging default templates
+and parameters for consistent file generation.
 """
 # third-party libraries
 from jinja2 import (
@@ -77,36 +81,48 @@ def render_class_template(
     class_info: Dict[str, Any],
     class_case: Dict[str, Any],
     class_grus: Sequence[Dict[str, Any]],
-    default_header_path: PathLike = DEFAULT_CLASS_HEADER,
-    default_params_path: PathLike = DEFAULT_CLASS_PARAMS,
-    default_case_path: PathLike = DEFAULT_CLASS_CASE,
-    default_lines_path: PathLike = DEFAULT_CLASS_LINES,
-    default_types_path: PathLike = DEFAULT_CLASS_TYPES,
-    template_class_jinja_path: PathLike = TEMPLATE_CLASS,
+    default_header_path: PathLike = DEFAULT_CLASS_HEADER, # type: ignore
+    default_params_path: PathLike = DEFAULT_CLASS_PARAMS, # type: ignore
+    default_case_path: PathLike = DEFAULT_CLASS_CASE, # type: ignore
+    default_lines_path: PathLike = DEFAULT_CLASS_LINES, # type: ignore
+    default_types_path: PathLike = DEFAULT_CLASS_TYPES, # type: ignore
+    template_class_jinja_path: PathLike = TEMPLATE_CLASS, # type: ignore
 ) -> str:
     """
-    Render a class template using Jinja2.
+    Render a CLASS configuration file using Jinja2 templates.
 
     Parameters
     ----------
-    class_params : dict
-        A dictionary containing class parameters to be used in the template.
-    default_header_path : PathLike
-        Path to the template heading file.
-    template_body_path : PathLike
-        Path to the template body file.
-    template_case_path : PathLike
-        Path to the template case file.
+    class_info : dict
+        Dictionary containing metadata and info for the CLASS file header.
+    class_case : dict
+        Dictionary containing case-specific settings for the CLASS file.
+    class_grus : Sequence[dict]
+        Sequence of dictionaries, each representing GRU parameters.
+    default_header_path : PathLike, optional
+        Path to the default CLASS header JSON file.
+    default_params_path : PathLike, optional
+        Path to the default CLASS parameters JSON file.
+    default_case_path : PathLike, optional
+        Path to the default CLASS case JSON file.
+    default_lines_path : PathLike, optional
+        Path to the default CLASS lines JSON file.
+    default_types_path : PathLike, optional
+        Path to the default CLASS types JSON file.
+    template_class_jinja_path : PathLike, optional
+        Path to the Jinja2 template for the CLASS file.
 
     Returns
     -------
     str
-        Rendered class template as a string.
+        Rendered CLASS configuration file as a string.
 
     Raises
     ------
     FileNotFoundError
-        If any of the template files do not exist.
+        If any of the template or default files do not exist.
+    Exception
+        If a Jinja2 template error occurs.
     """
     # load the default values for each GRU
     with open(default_params_path, 'r') as file:
@@ -191,22 +207,22 @@ def render_class_template(
 def render_hydrology_template(
     routing_params: Dict[str, Any] = {},
     hydrology_params: Dict[str, Any] = {},
-    default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS,
-    template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY,
+    default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS, # type: ignore
+    template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY, # type: ignore
 ) -> str:
     """
-    Render a hydrology parameters ini template using Jinja2.
+    Render a hydrology parameters INI template using Jinja2.
 
     Parameters
     ----------
-    routing_params : dict
-        A dictionary containing routing parameters to be used in the template.
-    hydrology_params : dict
-        A dictionary containing hydrology parameters to be used in the template.
-    default_params_path : PathLike
-        Path to the default hydrology parameters file.
-    template_hydrology_path : PathLike
-        Path to the hydrology template file.
+    routing_params : dict, optional
+        Dictionary containing routing parameters for the template.
+    hydrology_params : dict, optional
+        Dictionary containing hydrology parameters for the template.
+    default_params_path : PathLike, optional
+        Path to the default hydrology parameters JSON file.
+    template_hydrology_path : PathLike, optional
+        Path to the Jinja2 template for hydrology parameters.
 
     Returns
     -------
@@ -216,7 +232,9 @@ def render_hydrology_template(
     Raises
     ------
     FileNotFoundError
-        If any of the template files do not exist.
+        If any of the template or default files do not exist.
+    Exception
+        If a Jinja2 template error occurs.
     """
     # load the default values for each GRU
     with open(default_params_path, 'r') as file:
@@ -265,29 +283,32 @@ def render_hydrology_template(
 
 def render_run_options_template(
     run_options_dict: Dict[str, Any],
-    default_run_options_path: PathLike = DEFAULT_RUN_OPTIONS,
-    template_run_options_path: PathLike = TEMPLATE_RUN_OPTIONS,
+    default_run_options_path: PathLike = DEFAULT_RUN_OPTIONS, # type: ignore
+    template_run_options_path: PathLike = TEMPLATE_RUN_OPTIONS, # type: ignore
 ) -> str:
-    """Render a run options template using Jinja2.
+    """
+    Render a run options configuration file using Jinja2 templates.
 
     Parameters
     ----------
-    run_options : dict
-        A dictionary containing run options to be used in the template.
-    default_run_options_path : PathLike
-        Path to the default run options file.
-    template_run_options_path : PathLike
-        Path to the run options template file.
+    run_options_dict : dict
+        Dictionary containing run options to be used in the template.
+    default_run_options_path : PathLike, optional
+        Path to the default run options JSON file.
+    template_run_options_path : PathLike, optional
+        Path to the Jinja2 template for run options.
 
     Returns
     -------
     str
-        Rendered run options template as a string.
+        Rendered run options configuration file as a string.
 
     Raises
     ------
     FileNotFoundError
-        If any of the template files do not exist.
+        If any of the template or default files do not exist.
+    Exception
+        If a Jinja2 template error occurs.
     """
     # load the default values for each GRU
     with open(default_run_options_path, 'r') as file:

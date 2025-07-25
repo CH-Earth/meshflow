@@ -1,0 +1,19 @@
+MESH Model Default Settings
+==========================
+
+This directory contains the default input files and configuration templates required for initializing and running MESH model instances. These files are intended to be copied to each new model instance to provide a standardized starting point for simulations.
+
+Contents:
+---------
+- **MESH_input_reservoir.txt**: Default reservoir input parameters.
+- **MESH_input_soil_levels.txt**: Default soil level input parameters.
+- **MESH_input_streamflow.txt**: Default streamflow input parameters, only to be used for the initial conditions.
+- **MESH_parameters.txt**: General model parameters for MESH not included in CLASS or Hydrology.
+- **outputs_balance.txt**: Output balance configuration.
+- **results/**: Directory for storing model results.
+
+Usage:
+------
+Copy all files from this directory into your MESH model instance directory before running a simulation. Modify the input files as needed for your specific case.
+
+For more information, refer to the main documentation in `docs/source/usage.rst` or the project README.

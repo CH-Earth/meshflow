@@ -31,58 +31,67 @@ def prepare_mesh_forcing(
     local_attrs: Optional[Dict[str, str]] = None,
     global_attrs: Optional[Dict[str, str]] = None,
 ) -> None:
-    """Prepares a MESH forcing file.
+    """
+    Prepare a MESH forcing file by merging, converting, and annotating data.
 
     Parameters
     ----------
     path : str
-        The path to input forcing files.
-    variables : Dict[str, str]
-        A sequence of variable names to be included in the output file.
-    units : Dict[str, str]
-        A dictionary mapping variable names to their units.
+        Path to input forcing files.
+    variables : Sequence[str]
+        Sequence of variable names to include in the output file.
+    units : dict of str
+        Dictionary mapping variable names to their units.
+    hru_dim : str, optional
+        Name of the HRU dimension to use in the output dataset.
     unit_registry : pint.UnitRegistry, optional
-        A Pint unit registry for converting units, by default None.
-    to_units : Dict[str, str], optional
-        A dictionary mapping variable names to target units for conversion,
-        by default None.
-    local_attrs: Dict[str, str], optional
-        A dictionary instructing local attributes for forcing variables
-    global_attrs: Dict[str, str], optional
-        A dictionary instructing global attributes for the forcing object
+        Pint unit registry for unit conversion. Default is None.
+    to_units : dict of str, optional
+        Dictionary mapping variable names to target units for conversion.
+    aggregate : bool, default False
+        If True, merge multiple input files into one using CDO. If False,
+        assumes input files are already in the correct format and reads them
+        directly.
+        This is useful for MESH, which only reads one file.
+        If `aggregate` is False, the input files are assumed to be already
+        in the correct chunk format and are read directly.
+        If `aggregate` is True, CDO is used to merge the files.
+        Note that CDO is a binary dependency and must be installed separately.
+        The merged dataset is returned as an xarray.Dataset.
+    local_attrs : dict of dict, optional
+        Dictionary of local attributes for each forcing variable.
+        The keys are variable names and the values are dictionaries
+        of attributes to assign to each variable.
+        Example: {'air_temperature': {'long_name': 'Air Temperature',
+                                       'units': 'K'}}
+    global_attrs : dict of str, optional
+        Dictionary of global attributes for the output dataset. The keys are
+        attribute names and the values are their descriptions.
+
+    Returns
+    -------
+    xarray.Dataset
+        Merged and converted dataset containing forcing variables.
 
     Raises
     ------
     TypeError
         If `variables` is not a sequence of string values.
     ValueError
-        If `units` associated with `variables` elements are not provided or if
-        any variable defined in `units` cannot be found in `variables`.
-
-    Returns
-    -------
-    xarray.Dataset
-        Returns an xarray.Dataset containing the merged and converted data.
-        Otherwise, None.
+        If units for variables are not provided, or if any variable in
+        `units` cannot be found in the dataset.
 
     Notes
     -----
-    - The function merges all the input forcing files into a single NetCDF file
-      as MESH only reads one file. CDO is used for merging, but the function
-      returns an xarray.Dataset.
-    - The `variables` dictionary must contain the following keys:
-        - air_pressure
-        - specific_humidity
-        - air_temperature
-        - wind_speed
-        - preciptiation
-        - shortwave_radiation
-        - longwave_radiation
-    - The `units` dictionary must contain the same keys as `variables`
-    - The `to_units` dictionary must also contain the same keys as `variables`
-
-    [FIXME]: The merge functionality could become more comprehensive in future
-    versions.
+    - Merges all input forcing files into a single NetCDF file, as MESH only
+      reads one file. CDO is used for merging, but the function returns an
+      xarray.Dataset.
+    - The `variables` sequence should include:
+        'air_pressure', 'specific_humidity', 'air_temperature', 'wind_speed',
+        'precipitation', 'shortwave_radiation', 'longwave_radiation'.
+    - The `units` and `to_units` dictionaries must contain the same keys as
+      `variables`.
+    - The merge functionality may be expanded in future versions.
     """
     # if `units` is not provided, throw an exception
     if not units:
@@ -149,70 +158,102 @@ def prepare_mesh_forcing(
 
 
 def freq_long_name(
-    freq_alias: 'str'
-) -> str:
-    """returning fullname of a offset alias based on pandas conventions
-
-    Paramters
-    ---------
     freq_alias: str
-        Time offset alias which is usually a single character to represent
-        time interval frequencies, such as 'H' for 'hours'
+) -> str:
+    """
+    Return the full name of a time offset alias based on pandas conventions.
+
+    Parameters
+    ----------
+    freq_alias : str
+        Time offset alias representing time interval frequency, such as
+        'H' for 'hours', 'T' for 'minutes', etc.
 
     Returns
     -------
     str
-        fullname of the time offset
+        Full name of the time offset (e.g., 'hours', 'minutes').
+
+    Raises
+    ------
+    TypeError
+        If `freq_alias` is not a string.
+    ValueError
+        If `freq_alias` is not a recognized offset alias.
+
+    Examples
+    --------
+    >>> freq_long_name('H')
+    'hours'
+    >>> freq_long_name('T')
+    'minutes'
     """
 
     if not isinstance(freq_alias, str):
-        raise TypeError(f"frequency value of \'{freq_alias}\' is not"
-                        "acceptable")
+        raise TypeError(
+            f"frequency value of '{freq_alias}' is not acceptable"
+        )
 
     if freq_alias in ('H', 'h'):
         return 'hours'
     elif freq_alias in ('T', 'min'):
         return 'minutes'
-    elif freq_alias in ('S'):
+    elif freq_alias in ('S',):
         return 'seconds'
     elif freq_alias in ('L', 'ms'):
         return 'milliseconds'
     else:
-        raise ValueError(f"frequency value \'{freq_alias}\' is not"
-                         "acceptable")
-    return
+        raise ValueError(
+            f"frequency value '{freq_alias}' is not acceptable"
+        )
+
 
 def calculate_time_difference(
     initial_time_zone: str,
     target_time_zone: str
 ) -> int | float:
-    """Calculates the time difference in hours between two time zones.
+    """
+    Calculate the time difference in hours between two IANA time zones.
+
     Parameters
     ----------
     initial_time_zone : str
-        The initial time zone in the format 'UTC±HH:MM'.
+        IANA time zone name (e.g., 'America/Toronto').
     target_time_zone : str
-        The target time zone in the format 'UTC±HH:MM'.
-    
+        IANA time zone name (e.g., 'UTC', 'Europe/London').
+
     Returns
     -------
-    int | float
-        The time difference in hours. If the time zones are the same, returns 0.
+    float or int
+        Time difference in hours between the two time zones. If the time
+        zones are the same, returns 0.
 
     Raises
     ------
+    AssertionError
+        If either time zone argument is not a string.
     ValueError
-        If the time zone format is incorrect or if the time zones are not valid.
+        If the time zone format is incorrect or not valid.
 
     Notes
     -----
-    - Timezone naming scheme (TZ) follows IANA's convention found at the
-        following link (version 2025b):
-        https://data.iana.org/time-zones/releases/tzdb-2025b.tar.lz
+    Time zone naming follows IANA conventions:
+    https://data.iana.org/time-zones/releases/tzdb-2025b.tar.lz
+
+    Examples
+    --------
+    >>> calculate_time_difference('UTC', 'America/Toronto')
+    -4.0
+    >>> calculate_time_difference('America/Edmonton', 'America/Toronto')
+    2.0
     """
     # Routine error checks
-    assert isinstance(initial_time_zone, str), "forcing time zone needs to be of dtype `str`."
-    assert isinstance(target_time_zone, str), "target time zone needs to be of dtype `str`."
+    assert isinstance(initial_time_zone, str), (
+        "forcing time zone needs to be of dtype `str`."
+    )
+    assert isinstance(target_time_zone, str), (
+        "target time zone needs to be of dtype `str`."
+    )
 
     # Define the datetime you want to compare (current time in UTC)
     dt = datetime.now(tz=ZoneInfo("UTC"))

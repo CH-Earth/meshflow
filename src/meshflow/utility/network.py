@@ -28,50 +28,38 @@ def extract_rank_next(
     ds_seg: Iterable,
     outlet_value: int = -9999,
 ) -> Tuple[np.ndarray, ...]:
-    '''Producing rank_var and next_var variables needed for 
-    MESH modelling
-    
+    """
+    Generate MESH-compatible rank and next variables for river segments.
+
     Parameters
     ----------
     seg : array-like or list-like
-        The ordered list (or array) of segment IDs corresponding
-        to river reaches presented in an area of interest
+        Ordered segment IDs for river reaches in the area of interest.
     ds_seg : array-like or list-like
-        The ordered list (or array) of downstream segment IDs
-        corresponding to those of `seg_id` elements
-    outlet_value : int, [defaults to -9999]
-        The outlet value assigned to `to_segment` indicating
-        sinking from the system
-    
-    
+        Ordered downstream segment IDs corresponding to `seg` elements.
+    outlet_value : int, optional
+        Value assigned to `to_segment` indicating outlet/sink from the
+        system. Default is -9999.
+
     Returns
     -------
-    rank_var: numpy.array of int
-        The 'rank_var' of each segment ID produced based on
-        MESH modelling standards
-    next_var: numpy.array of int
-        The 'next_var' variable indicating the downstream segment
-        of river reaches corresponding to 'rank_var'
-    seg_id: numpy.array of int
-        The 'seg_id' that has been reordered to match values of
-        `rank_var` and `next_var`.
-    to_segment: numpy.array of int
-        The 'to_segment' that has been reordered to match values
-        of `rank_var` and `next_var`.
-    
-    
+    rank_var : numpy.ndarray
+        Rank of each segment ID, following MESH modelling standards.
+    next_var : numpy.ndarray
+        Downstream segment index for each river reach, matching `rank_var`.
+    seg_id : numpy.ndarray
+        Segment IDs reordered to match `rank_var` and `next_var`.
+    to_segment : numpy.ndarray
+        Downstream segment IDs reordered to match `rank_var` and `next_var`.
+
     Notes
     -----
-    The function is mainly developed by Dr. Ala Bahrami at
-    <ala.bahrami@usask.ca> and Cooper Albano <cooper.albano@usask.ca>
-    as part of the North American MESH model workflow development.
-    Minor changes have been implemented by Kasra Keshavarz
-    <kasra.keshavarz1@ucalgary.ca>.
+    Developed by Dr. Ala Bahrami and Cooper Albano for North American MESH
+    model workflows. Minor changes by Kasra Keshavarz.
 
-    The original workflow is located at the following link:
-    https://github.com/MESH-Model/MESH-Scripts
-    <last accessed on August 29th, 2023>
-    '''
+    Original workflow:
+        https://github.com/MESH-Model/MESH-Scripts
+    """
 
     # extracting numpy array out of input iterables
     seg_arr = np.array(seg)
@@ -338,64 +326,55 @@ def prepare_mesh_ddb(
     ddb_units: Dict[str, str] = None,
     ddb_to_units: Dict[str, str] = None,
 ) -> xr.Dataset:
-    '''Prepares the drainage database (ddb) of the MESH model.
-    The function implements a set of ad-hoc manipulations on
-    the river network and catchment geospatial data to prepare
-    the ddb.
+    """
+    Prepares the drainage database (ddb) for the MESH model.
+
+    This function applies a set of manipulations to river network and catchment
+    geospatial data to construct the drainage database required by MESH.
 
     Parameters
     ----------
-    riv : str of ESRI Shapefile path, or list of paths, or geopandas.GeoDataFrame
-        The path to the ESRI Shapefile of the geospatial object
-        containing LineString(s) of the river network
-    cat : str of ESRI Shapefile path, or list of paths, or geopandas.GeoDataFrame
-        The path to the ESRI Shapefile of the geospatial object
-        containing Polygon(s) and MultiPolygon(s) of the catchments
+    riv : str, list of str, or geopandas.GeoDataFrame
+        Path(s) to ESRI Shapefile(s) or a GeoDataFrame containing river
+        LineString(s).
+    cat : str, list of str, or geopandas.GeoDataFrame
+        Path(s) to ESRI Shapefile(s) or a GeoDataFrame containing catchment
+        Polygon(s) or MultiPolygon(s).
     landcover : pandas.DataFrame
-        Dataframe of land use class fractions (i.e., between 0 and
-        1) seen in each element of `cat`. Each column corresponds to
-        the fraction of each land cover class and each row corres-
-        ponds to each element of `cat`
-    coords : pandas.DataFrame
-        Dataframe of the `cat`'s centroid coordinates, including a
-        column for the latitude and another for the longitude
+        DataFrame of land use class fractions (values between 0 and 1) for each
+        catchment. Columns are land cover classes; rows are catchment elements.
     cat_dim : str
-        The dimension name of the catchments available in `cat`,
-        `riv`, `landcover`, and `coords`
+        Name of the catchment dimension present in `cat`, `riv`, and `landcover`.
     gru_dim : str
-        The dimension name corresponding to the landcover classes
-        after necessary manipulations on `landcover`
+        Name of the landcover class dimension after processing `landcover`.
+    hru_dim : str
+        Name of the hydrological response unit (HRU) dimension for output.
+    gru_names : Sequence of str
+        List of landcover class names, ordered to match processed `landcover`.
     include_vars : dict
-        The keys correspond to the variables of `riv`, `cat`, or
-        `landcover` to be included in the returned xarray.Dataset,
-        and the values correspond to the rename values
+        Dictionary mapping variable names in input data to output names in ddb.
     attr_local : dict
-        The keys correspond to the renamed value of `include_vars`
-        and the values consist of a dictionary with keys as attribute
-        names and values of attribute description
+        Dictionary mapping output variable names to their attribute dictionaries.
     attr_global : dict
-        The keys correspond to the global attribute names and values
-        of attribute description
-    outlet_value : int, optional [defaults to -9999]
-        The outlet value for the 'nextdownid' variable shown in
-        the `cols` dictionary indicating sinking from the system
+        Dictionary mapping global attribute names to their descriptions.
     min_values : dict, optional
-        Set the minimum values corresponding to the variables indicated
-        as dictionary keys. Of course, the keys must have been included
-        as values of the `include_vars` dictionary
+        Minimum values for variables in ddb. Keys must match output variable names.
     fill_na : dict, optional
-        Fill the numpy.nan values found in each xarray.DataArray of
-        `ddb`
-    ordered_dims : Dict[str, array-like], optional
-        Sorting dimensions of the `ddb` taken as keys of the `ordered_dims`
-        and ordered values of each as their corresponding values
+        Values to fill for NaNs in each variable of ddb. Keys are variable names.
+    ordered_dims : dict, optional
+        Dictionary mapping dimension names to ordered values for sorting ddb.
+    ddb_units : dict, optional
+        Dictionary mapping variable names to their units for quantification.
+    ddb_to_units : dict, optional
+        Dictionary mapping variable names to target units for conversion.
 
     Returns
     -------
     ddb : xarray.Dataset
-        drainage database in an xarray.Dataset object with necessary information
+        Drainage database as an xarray.Dataset containing all required variables
+        and attributes for MESH model setup.
 
-    '''
+    """
     # define necessary variables
     geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
     landcover_var = 'landclass'  # landcover variable name in the object
