@@ -1632,7 +1632,7 @@ class MESHWorkflow(object):
             # build preliminray data dictionary
             riv_data = {
                 self.main_id: artif_outlet_id,
-                self.ds_main_id: 0,
+                self.ds_main_id: self.outlet_value,
             }
 
             # add other columns to the `riv_data` dictionary
