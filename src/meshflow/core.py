@@ -1207,11 +1207,21 @@ class MESHWorkflow(object):
 
         # update the class_gru dictionary with user inputs
         if 'class_params' in self.settings and 'grus' in self.settings['class_params']:
-            for gru, gru_class in self.settings['class_params']['grus'].items():
+            for gru, _class_dict in self.settings['class_params']['grus'].items():
+
                 # check if the gru is in the class_gru dictionary
                 if gru in class_gru:
-                    # update the class_gru dictionary with user inputs
-                    class_gru[gru]['class'] = gru_class
+                    # if only a string is provided—must be the class name only
+                    if isinstance(_class_dict, str):
+                        class_gru[gru]['class'] = _class_dict
+                    elif isinstance(_class_dict, dict) and 'class' in _class_dict:
+                        # update the class_gru dictionary with user inputs
+                        class_gru[gru]['class'] = _class_dict['class']
+                        # adding whatever is in `_class_dict` to the class_gru
+                        # dictionary, except for the 'class' key
+                        for key, value in _class_dict.items():
+                            if key.lower() != 'class':
+                                class_gru[gru][key.lower()] = value
                 else:
                     warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
 
