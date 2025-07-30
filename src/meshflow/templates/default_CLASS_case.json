@@ -1,0 +1,44 @@
+{
+    "vars": {
+        "case": {
+            "centroid_lat": "",
+            "centroid_lon": "",
+            "reference_height_wndspd": "",
+            "reference_height_spechum_airtemp": "",
+            "reference_height_surface_roughness": "",
+            "ground_cover_flag": -1.0,
+            "ILW": 1,
+            "NL": "",
+            "NM": ""
+        }
+    },
+    "comments": {
+        "case": "04 DEGLAT/DEGLON/ZRFM/ZRFH/ZBLD/GC/ILW/NL/NM"
+    },
+    "formats": {
+        "case": {
+            "centroid_lat": 2,
+            "centroid_lon": 2,
+            "reference_height_wndspd": 1,
+            "reference_height_spechum_airtemp": 1,
+            "reference_height_surface_roughness": 1,
+            "ground_cover_flag": 1,
+            "ILW": 0,
+            "NL": 0,
+            "NM": 0
+        }
+    },
+    "columns": {
+        "case": {
+            "centroid_lat": 4,
+            "centroid_lon": 12,
+            "reference_height_wndspd": 25,
+            "reference_height_spechum_airtemp": 35,
+            "reference_height_surface_roughness": 45,
+            "ground_cover_flag": 52,
+            "ILW": 60,
+            "NL": 65,
+            "NM": 70
+        }
+    }
+}

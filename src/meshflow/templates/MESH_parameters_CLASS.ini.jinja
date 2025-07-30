@@ -1,0 +1,388 @@
+{#
+    useful assumptions
+    ==================
+#}
+{% set indent = 2 %}
+{% set comment_col = 78 %}
+{#
+    useful macros
+    =============
+#}
+{% macro calculate_padding(column, cursor) %}
+    {# move cursor to column number in the text file #}
+    {{- " " * (column - cursor - 1) -}}
+{% endmacro %}
+{% macro format_float(value, decimals) %}
+    {# define number of decimals for float values #}
+    {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
+{% macro calculate_padding_end(column, val, cursor) %}
+    {# define the padding given the column the `val' s length #}
+    {{- " " * (column - (val | string | length) - cursor - 1) -}}
+{% endmacro %}
+{#
+    CLASS file definitons
+    =====================
+    the info block:
+    ---------------
+    
+    containing three lines displaying the CLASS test case name, user's name,
+    and affiliation.
+    
+    The information in this section does not need to be changed during
+    (auto-)calibration experiments.
+
+    reference:
+    ~~~~~~~~~~
+    - https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini
+#}
+{% set cursor = namespace(position_info=0) %}
+{% for k in info_block.get(variables).keys() -%}
+    {# necessary dictionaries #}
+    {% set comment = info_block.get(comments).get(k) %}
+    {% set val = info_block.get(variables).get(k) %}
+    {% set format = info_block.get(formats).get(k) %}
+    {% set col = info_block.get(columns).get(k) %}
+    {# building the block #}
+    {%- set padding = calculate_padding(col, cursor.position_info) -%}
+    {# print the output #}
+    {{- padding }}{{ val -}}
+    {# move the cursor #}
+    {% set cursor.position_info = cursor.position_info + (padding | length) + (val | length) -%}
+    {# write the comment #}
+    {%- set comment_padding = calculate_padding(comment_col, cursor.position_info) -%}
+    {{- comment_padding }}{{ comment }}
+    {# reset cursor #}
+    {% set cursor.position_info = 0 %}
+{% endfor %}
+{#
+    the case block:
+    ---------------
+    containing 1 line of information on the main assumption about the assumed
+    height of forcing variable, centroid coordinates of the study area, etc.
+
+    The information in this section does not need to be changed during
+    (auto-)calibration experiments.
+
+    reference:
+    ~~~~~~~~~~
+    - https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini
+#}
+{% set cursor = namespace(position_case=0) %}
+{% for k in case_block.get(variables).keys() -%}
+{# `k' represents "key"s #}
+  {%- set b = case_block.get(variables).get(k) -%}
+    {# needed dictionaries #}
+    {% set comment = case_block.get(comments).get(k) %}
+    {% set vars_dict = case_block.get(variables).get(k) %}
+    {% set format_dict = case_block.get(formats).get(k) %}
+    {% set column_dict = case_block.get(columns).get(k) %}
+    {# building the block #}
+    {# second level of keys within `vars_dict' #}
+    {%- for kk in vars_dict.keys() -%}
+        {# all values are float, hence reformatting #}
+        {%- set val = format_float(vars_dict.get(kk), format_dict.get(kk)) -%}
+        {%- set col = column_dict.get(kk) -%}
+        {%- set padding = calculate_padding(col, cursor.position_case) -%}
+        {# print value #}
+        {{- padding }}{{ val -}}
+        {# {{ padding | length }} #}
+        {# update cursor #}
+        {% set cursor.position_case = cursor.position_case + (padding | length) + (val | length) %}
+    {%- endfor -%}
+    {# adding comment padding #}
+    {%- set comment_padding = calculate_padding(comment_col, cursor.position_case) -%}
+  {{- comment_padding }}{{ comment }}
+{% endfor -%}
+{#
+    the GRU block(s):
+    -----------------
+#}
+{% set cursor = namespace(position_gru=0) %}
+{#
+     description: like other blocks, the `gru_block` consists of 4
+     main keys:
+        * variables,
+        * comments,
+        * formats, and
+        * columns (only for comments.)
+     The `variables' section consists of various blocks (representing
+     GRUs.) Since the order of `blocks' is important, the content of
+     `variables' is a list, unlike other sections where the content
+     is a dictionary.
+     
+     Each block comes with 4 sub-sections (order matters):
+        * veg,
+        * hyd,
+        * soil, and
+        * prog.
+     Each sub-section is templated differently, hence the separation in
+     the `variables' block components. Each sub-section is divided into
+     various `line#' s where the lines describe the CLASS(IC) inputs.
+     
+     The `line#' s start from 5 and end with 17. So, an iteration from 5-17
+     can be done.
+    
+     The `veg' section is defined uniquely for each `veg' class (or category,)
+     and are described below:
+         * if `class' is "needleleaf":
+             -> the first column of the `veg' section is populated, and the 
+                rest is set as `0.000',
+         * if `class' is "broadleaf":
+             -> the second column of the `veg' section is populated, and the 
+                rest is set as `0.000',
+         * if `class' is "crops":
+             -> the third column of the `veg' section is populated, and the 
+                rest is set as `0.000',
+         * if `class' is "grass":
+             -> the forth column of the `veg' section is populated, and the 
+                rest is set as `0.000', and
+         * if `class' is "barrenland":
+             -> the fifth column of the first sub-sub-section of `veg' section
+                is populated, and nothing will be set for the second
+                sub-sub-section.
+        for more information and how the `veg' section is populated, check out
+        the reference.
+
+    references:
+    ~~~~~~~~~~~
+    - https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini
+#}
+{# definitions of block sections names #}
+{%- set veg = 'veg' -%}
+{%- set hyd = 'hyd' -%}
+{%- set prog = 'prog' -%}
+{%- set soil = 'soil' -%}
+{# define the order of the `veg` section #}
+{%- set order = 
+    {
+        'needleleaf': 0,
+        'needle': 0,
+        'broadleaf': 1,
+        'broad': 1,
+        'crops': 2,
+        'crop': 2,
+        'grass': 3,
+        'grassland': 3,
+        'barrenland': 4,
+        'barren': 4,
+        'urban': 4,
+        'water': 4,
+        'impervious': 4,
+        'imperviousland': 4,
+    }
+-%}
+{# define line orders #}
+{%- set line_orders = {
+    "line5": ['fcan', 'lamx'],
+    "line6": ['lnz0' ,'lamn'],
+    "line7": ['alvc', 'cmas'],
+    "line8": ['alic', 'root'],
+    "line9": ['rsmn', 'qa50'],
+    "line10": ['vpda', 'vpdb'],
+    "line11": ['psga', 'psgb'],
+    "line12": ['drn', 'sdep', 'fare', 'dd'],
+    "line13": ['xslp', 'xdrainh', 'mann', 'ksat', 'mid'],
+    "line14": ['sand1', 'sand2', 'sand3'],
+    "line15": ['clay1', 'clay2', 'clay3'],
+    "line16": ['orgm1', 'orgm2', 'orgm3'],
+    "line17": ['tbar1', 'tbar2', 'tbar3', 'tcan', 'tpnd', 'tsno'],
+    "line18": ['thic1', 'thic2', 'thic3', 'thlq1', 'thlq2', 'thlq3', 'zpnd'],
+    "line19": ['albs', 'gro', 'rcan', 'rhos', 'scan', 'sno'],
+    }
+-%}
+{# `veg' lines lengths #}
+{%- set veg_lines_elements = {
+    "line5": {
+        'fcan': 5,
+        'lamx': 4
+        },
+    "line6": {
+        'lnz0': 5,
+        'lamn': 4
+        },
+    "line7": {
+        'alvc': 5,
+        'cmas':4
+        },
+    "line8": {
+        'alic': 5,
+        'root': 4
+        },
+    "line9": {
+        'rsmn': 4,
+        'qa50': 4
+        },
+    "line10": {
+        'vpda': 4,
+        'vpdb': 4
+        },
+    "line11": {
+        'psga': 4,
+        'psgb': 4
+        },
+    }
+-%}
+{# initiate an `MID` counter variable #}
+{% set mid = namespace(counter=100) %} 
+{# iterate over the blocks and populate sections #}
+{% for block_element in gru_block.get(variables) %}
+    {# necessary dictionary definitions #}
+    {%- set veg_dict = block_element.get(veg) -%}
+    {%- set hyd_dict = block_element.get(hyd) -%}
+    {%- set prog_dict = block_element.get(prog) -%}
+    {%- set soil_dict = block_element.get(soil) -%}
+    {# necessary variable definitions #}
+    {%- set class = veg_dict.get('class') -%}
+    {# building `veg' section #}
+    {# first sub-sub-section #}
+    {# put zeros given the order of class #}
+    {%- set empty_predecessor = "   0.000" * order.get(class) -%}
+    {#
+        the cursor moves 8 characters (padding of 3 + 0 numbers) times
+        the order of the chosen class
+    #}
+    {%- set cursor.position_gru = empty_predecessor | length -%}
+    {# 
+        the `veg' sub-section
+        ~~~~~~~~~~~~~~~~~~~~~
+    #}
+    {% for line in range(5, 12) %}
+        {# line string name in string #}
+        {%- set line_str = "line" + (line | string) -%}
+        {# line information #}
+        {%- set line_dict = veg_dict.get(line_str) -%}
+        {# iterate over the line_dict values in order #}
+        {%- for element in line_orders.get(line_str) -%}
+            {# either 4 or 5 elements are accepted #}
+            {%- set number_accepted_elements = veg_lines_elements.get(line_str).get(element) -%}
+            {# calculate how many 0.000 value to be put after the element is printed #}
+            {%- set empty_successor = "   0.000" * 
+                (number_accepted_elements - order.get(class) - 1) 
+             -%}
+            {%- set val = format_float(line_dict.get(element), 3) -%}
+            {# define padding #}
+            {%- set padding = " " * (8 - val | string | length) -%}
+            {# if 4 elements are accepted, extra spacing is required #}
+            {%- if (number_accepted_elements == 4)
+                and (line in [9, 10, 11])
+                and (element in ['qa50', 'vpdb', 'psgb']) -%}
+                {%- set extra_space = " " * 8 -%}
+            {%- else -%}
+                {%- set extra_space = "" -%}
+            {%- endif -%}
+            {# if barrenland, no `val' is defined for qa50, vpda, psgb #}
+            {%- if (class == 'barrenland' or class == 'water' or class == 'urban')
+                and (number_accepted_elements == 4)
+                -%}
+                {{- extra_space }}{{ "   0.000   0.000   0.000   0.000" -}}
+            {%- else -%}
+            {# if not, print normally #}
+                {# print `veg' line gru information #}
+                {{- extra_space }}{{ empty_predecessor }}{{ padding }}{{- val -}}{{ empty_successor -}}
+            {%- endif -%}
+            {# go to the next element of the line #}
+        {%- endfor -%}
+        {%- set line_comment = gru_block.get(comments).get(line_str) -%}
+        {{ " " * 5 }}{{ line_comment }}
+    {% endfor %}
+    {# 
+        the `hyd' sub-section
+        ~~~~~~~~~~~~~~~~~~~~~
+    #}
+    {% for line in range(12, 14) %}
+        {# reset the cursor position #}
+        {%- set cursor.position_gru = 0 -%}
+        {# line string name in string #}
+        {%- set line_str = "line" + (line | string) -%}
+        {# line information #}
+        {%- set line_dict = hyd_dict.get(line_str) -%}
+        {# iterate over the line_dict values in order #}
+        {%- for element in line_orders.get(line_str) -%}
+            {# set value #}
+            {%- if element == 'mid' -%}
+                {%- set val = line_dict.get(element) -%}
+                {%- set padding = " " * 3 -%}
+		{%- if class == 'water' -%}
+                    {{- padding }}{{ "0   " }}{{- val -}}
+		{%- else -%}
+                    {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
+		{%- endif -%}
+		{%- set mid.counter = mid.counter + 1 -%}
+                {%- set cursor.position_gru = cursor.position_gru + 4 + (padding | length) + (val | string | length) -%}
+            {%- else -%}
+                {%- set val = format_float(line_dict.get(element), 3) -%}
+                {%- set padding = " " * (8 - val | string | length) -%}
+                {{- padding }}{{- val -}}
+                {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
+            {%- endif -%}
+            {# print info #}
+        {%- endfor -%}
+        {%- set line_comment = gru_block.get(comments).get(line_str) -%}
+        {%- set comment_padding = calculate_padding(comment_col, cursor.position_gru) -%}
+        {{ comment_padding }}{{ line_comment }}
+    {% endfor %}
+    {# 
+        the `soil' sub-section
+        ~~~~~~~~~~~~~~~~~~~~~~
+    #}
+    {% for line in range(14, 17) %}
+        {# reset the cursor position #}
+        {%- set cursor.position_gru = 0 -%}
+        {# line string name in string #}
+        {%- set line_str = "line" + (line | string) -%}
+        {# line information #}
+        {%- set line_dict = soil_dict.get(line_str) -%}
+        {# iterate over the line_dict values in order #}
+        {%- for element in line_orders.get(line_str) -%}
+            {# set value #}
+            {%- set val = format_float(line_dict.get(element), 3) -%}
+            {%- set padding = " " * (8 - val | string | length) -%}
+            {# print info #}
+            {{- padding }}{{- val -}}
+            {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
+        {%- endfor -%}
+        {%- set line_comment = gru_block.get(comments).get(line_str) -%}
+        {%- set comment_padding = calculate_padding(comment_col, cursor.position_gru) -%}
+        {{ comment_padding }}{{ line_comment }}
+    {% endfor %}
+    {# 
+        the `prog' sub-section
+        ~~~~~~~~~~~~~~~~~~~~~~
+    #}
+    {% for line in range(17, 20) %}
+        {# reset the cursor position #}
+        {%- set cursor.position_gru = 0 -%}
+        {# line string name in string #}
+        {%- set line_str = "line" + (line | string) -%}
+        {# line information #}
+        {%- set line_dict = prog_dict.get(line_str) -%}
+        {# iterate over the line_dict values in order #}
+        {%- for element in line_orders.get(line_str) -%}
+            {# set value #}
+            {%- set val = format_float(line_dict.get(element), 3) -%}
+            {%- set padding = " " * (8 - val | string | length) -%}
+            {# print info #}
+            {{- padding }}{{- val -}}
+            {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
+        {%- endfor -%}
+        {%- set line_comment = gru_block.get(comments).get(line_str) -%}
+        {%- set comment_padding = calculate_padding(comment_col, cursor.position_gru) -%}
+        {{ comment_padding }}{{ line_comment }}
+    {% endfor %}
+
+{% endfor %}
+{#
+    the date block:
+    ---------------
+
+    This has default values and MESH does not use this block. So, no Jinja2
+    logic is put here, but hard-coded values.
+
+    reference:
+    ~~~~~~~~~~
+    https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini#MESH_parameters_CLASS.ini-Dates
+#}
+   0       0       0       0                                                 20 (not used, but 4x integer values are required)
+   0       0       0       0                                                 21 (not used, but 4x integer values are required)
+   0       0       0       0                                                 22 IHOUR/IMINS/IJDAY/IYEAR

@@ -7,7 +7,7 @@ name = "meshflow"
 dynamic = ["version"]
 description = 'MeshFlow aims to facilitate setting up MESH models for any temporal and spatial domain of interest. This package is prepared in Python and can be accessed from command line using its Command Line Interface.'
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 license = "GPL-3.0-or-later"
 keywords = [
   "MESH",
@@ -22,11 +22,11 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -41,15 +41,22 @@ dependencies = [
   "numpy>=1.22.2",
   "typing_extensions>=4.7.1",
   "hydrant>=0.1.0-dev0",
-  "click>=8.1.2",
   "netCDF4>=1.6.4",
   "cdo>=1.5.6",
+  "Jinja2>=3.1.4",
+  "python-dateutil>=2.8.2",
+  "click>=8.2.1",
+  "pint-pandas>=0.7.1",
+  "timezonefinder>=6.5.9",
 ]
 
 [project.urls]
 Documentation = "https://github.com/unknown/meshflow#readme"
 Issues = "https://github.com/unknown/meshflow/issues"
 Source = "https://github.com/unknown/meshflow"
+
+[project.scripts]
+meshflow = "meshflow.cli.main:main"
 
 [tool.hatch.version]
 path = "src/meshflow/__init__.py"
@@ -82,7 +89,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -186,5 +193,6 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
+# package data
 [tool.setuptools.package-data]
-demo_package = ["src/meshflow/default_settings/*"]
+your_package = ["templates/*.txt"]

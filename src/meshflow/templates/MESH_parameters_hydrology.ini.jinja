@@ -1,0 +1,186 @@
+{#
+    useful macros
+    =============
+#}
+{% macro calculate_padding(column, cursor) %}
+    {# move cursor to column number in the text file #}
+    {{- " " * (column - cursor - 1) -}}
+{% endmacro %}
+{% macro format_float(value, decimals) %}
+    {# define number of decimals for float values #}
+    {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
+{% macro calculate_padding_end(column, val, cursor) %}
+    {# define the padding given the column the `val' s length #}
+    {{- " " * (column - (val | string | length) - cursor - 1) -}}
+{% endmacro %}
+{#
+    hydrology file:
+    ===============
+    In this file, the hydrology and GRU-dependent parameters are defined.
+    
+    hydrology routing parameters:
+    -----------------------------
+#}
+{# following section which is hard-coded can follow a logic if needed #}
+{{ "2.0: MESH Hydrology parameters input file (Version 2.0)" }}
+{{ "##### Option Flags #####" }}
+{{ "----#" }}
+{{ "    0                                                       # Number of option flags" }}
+{{ "##### Channel routing parameters per river class #####" }}
+{{ "-------#" }}
+{{ "4                                                           # Number of channel routing parameters" }}
+{# `routing_dict' is really a list of dicts, so it is ordered #}
+{# list the values for `r2n', `r1n', `pwr', and `flz' #}
+{%- set index = namespace(routing=0) -%}
+{%- set cursor = namespace(hydrology=0) -%}
+{# order of values #}
+{%- set param_order = ("R2N", "R1N", "PWR", "FLZ") -%}
+{# iterate over each parameter and column of data provided #}
+{% for param in param_order %}
+    {# reset the name printing check variable #}
+    {%- set index = namespace(routing=0) -%}
+    {%- for routing_column in routing_dict -%}
+        {# define a list of these parameters #}
+        {%- set param_dict = {
+            "R2N": format_float(routing_column.get("r2n"), 3),
+            "R1N": format_float(routing_column.get("r1n"), 3),
+            "PWR": format_float(routing_column.get("pwr"), 3),
+            "FLZ": format_float(routing_column.get("flz"), 3)
+            }
+        -%}
+        {# define simple padding #}
+        {%- set padding = " " * 4 -%}
+        {# write values #}
+        {%- set param_val = param_dict.get(param) -%}
+        {# print values #}
+        {%- if index.routing == 0 -%}
+            {# print values #}
+            {{- param -}}{{- padding }}{{ param_val -}}
+            {# make sure variable name is printed only once #}
+            {%- set index.routing = 1 -%}
+            {# update cursor position #}
+            {%- set cursor.hydrology = (param | length) + (padding | length) + (param_val | string | length) -%}
+        {%- else -%}
+            {# only print padding and param_val if variable name is already
+               written
+            #}
+            {{- padding }}{{ param_val -}}
+            {# update cursor position #}
+            {%- set cursor.hydrology = cursor.hydrology + (padding | length) + (param_val | string | length) -%}
+        {% endif %}
+    {%- endfor -%}
+    {# assing a comment #}
+    {%- set comment = "# comment for line" -%}
+    {# determine comment padding #}
+    {%- set comment_padding = calculate_padding(61, cursor.hydrology) -%}
+    {{- comment_padding }}{{ comment }}
+{% endfor %}
+{# 
+    GRU-dependent parameters:
+    -------------------------
+#}
+{# following section which is hard-coded can follow a logic if needed #}
+{{ "##### GRU class independent hydrologic parameters #####     # 10comment line 13                                                           | *" }}
+{{ "-------#                                                    # 11comment line 14                                                           | *" }}
+{{ "       0                                                    # Number of GRU independent hydrologic parameters" }}
+{{ "##### GRU class dependent hydrologic parameters #####       # 18comment line 16                                                           | *" }}
+{{ "-------#                                                    # 19comment line 17                                                           | *" }}
+{{ "       4                                                    # 21Number of GRU dependent hydrologic parameters                             | I8" }}
+{# `gru_dict' is really a list of dicts #}
+{# keys are GRU types, and values are a dictionary where the GRU
+   parameters are defined, with keys the GRU parameters, and values
+   of parameter values.
+#}
+{%- set index = namespace(gru=0) -%}
+{%- set title = namespace(gru=0) -%}
+{%- set cursor = namespace(gru=0, val=0) -%}
+{%- set lengths = namespace(title_padding=0) -%}
+{# iterate over each block, parameter and column of data provided #}
+{%- for gru_block in gru_dict -%}
+    {# gru name is the key of the dictionary #}
+    {%- set gru = gru_block.keys() | first | string -%}
+    {# title padding is always 3 or 6 whitespaces between GRU names #}
+    {%- if gru | length <= 5 -%}
+        {%- set lengths.title_padding = 6 -%}
+    {%- else -%}
+	{%- set lengths.title_padding = 3 -%}
+    {%- endif -%}
+    {%- set title_padding = " " * lengths.title_padding -%}
+    {# if exclamation point is not printed (the first GRU) #}
+    {%- if title.gru == 0 -%}
+        {# put exclamation point + 5 whitespaces + gru name #}
+        {{- "!" + (" " * 5 ) + gru  + title_padding -}}
+        {# no need to put exclamation point from now on #}
+        {%- set title.gru = 1 -%}
+        {# move the cursor to the end of GRU name line which consists of
+        1 exclamation point + 5 whitespaces + gru name + title_padding length
+        #}
+        {%- set cursor.gru = cursor.gru + 6 + (gru | length) + (lengths.title_padding) -%}
+    {%- else -%}
+        {{ gru }}{{ title_padding -}}
+        {# move the cursor to the end of GRU name line which consists of
+        1 exclamation point + 5 whitespaces + gru name + title_padding length
+        #}
+        {%- set cursor.gru = cursor.gru + (lengths.title_padding) + (gru | length) -%}
+    {%- endif -%}
+{%- endfor %}
+
+{# order of values #}
+{%- set param_order = ("ZSNL", "ZPLS", "ZPLG", "IWF") -%}
+{# write parameter values #}
+{%- for param in param_order -%}
+    {# make sure to write the parameter name for the first time #}
+    {%- set index.gru = 0 -%}
+    {# (re)start cursor position for the variable name #}
+    {%- set cursor.val = 0 -%}
+    {%- set cursor.gru = 0 -%}
+    {# format the `param_val', keeping it simple #}
+    {%- if param | lower == 'iwf' -%}
+        {%- set precision =  0 -%}
+    {%- else -%}
+        {%- set precision = 3 -%}
+    {%- endif -%}
+    {# iterate over each block and write `param' values #}
+    {% for gru_block in gru_dict %}
+        {# define gru block name and dictionary #}
+        {%- set gru_name = gru_block.keys() | first -%}
+        {%- set gru_d = gru_block.get(gru_name) -%}
+        {# define a list of these parameters #}
+        {%- set param_val = format_float(gru_d.get(param | lower), precision) -%}
+        {# print values #}
+        {% if index.gru == 0 %}
+            {# define padding, 6 is because that where the first variable
+            should be printed #}
+            {%- set padding = calculate_padding(7, param | length) -%}
+            {# print values #}
+            {{- param | upper }}{{ padding }}{{ param_val -}}
+            {# make sure variable name is printed only once #}
+            {%- set index.gru = 1 -%}
+            {# the cursor value position #}
+            {%- set cursor.val = cursor.val + (param | length) + (padding | length) + (param_val | string | length) -%}
+            {# the cursor gru position #}
+            {%- if gru_name | string | length <= 5 -%}
+                {%- set lengths.title_padding = 6 -%}
+            {%- else -%}
+        	{%- set lengths.title_padding = 3 -%}
+            {%- endif -%}
+            {%- set cursor.gru = 6 + (lengths.title_padding) + (gru_name | string | length) -%}
+        {% else %}
+            {# only print padding and param_val if variable name is already
+               written #}
+            {%- set padding = " " * (cursor.gru - cursor.val) -%}
+            {{ padding }}{{ param_val -}}
+            {# the cursor value position #}
+            {%- set cursor.val = cursor.gru + (param_val | string | length) -%}
+            {# the cursor gru position #}
+            {%- if gru_name | string | length <= 5 -%}
+                {%- set lengths.title_padding = 6 -%}
+            {%- else -%}
+        	{%- set lengths.title_padding = 3 -%}
+            {%- endif -%}
+            {%- set cursor.gru = cursor.gru + lengths.title_padding + (gru_name | string | length) -%}
+        {% endif %}
+    {% endfor %}
+
+{% endfor -%}

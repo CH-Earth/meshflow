@@ -2,6 +2,7 @@
 containing modules to set up MESH models
 """
 
+# third-party libraries
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -9,6 +10,7 @@ import geopandas as gpd
 
 from hydrant.topology import river_graph
 
+# built-in libraries
 from typing import (
     Sequence,
     Iterable,
@@ -17,56 +19,47 @@ from typing import (
 )
 import re
 
+# internal imports
+from .geom import _calculate_polygon_areas
+
 
 def extract_rank_next(
     seg: Iterable,
     ds_seg: Iterable,
     outlet_value: int = -9999,
 ) -> Tuple[np.ndarray, ...]:
-    '''Producing rank_var and next_var variables needed for 
-    MESH modelling
-    
+    """
+    Generate MESH-compatible rank and next variables for river segments.
+
     Parameters
     ----------
     seg : array-like or list-like
-        The ordered list (or array) of segment IDs corresponding
-        to river reaches presented in an area of interest
+        Ordered segment IDs for river reaches in the area of interest.
     ds_seg : array-like or list-like
-        The ordered list (or array) of downstream segment IDs
-        corresponding to those of `seg_id` elements
-    outlet_value : int, [defaults to -9999]
-        The outlet value assigned to `to_segment` indicating
-        sinking from the system
-    
-    
+        Ordered downstream segment IDs corresponding to `seg` elements.
+    outlet_value : int, optional
+        Value assigned to `to_segment` indicating outlet/sink from the
+        system. Default is -9999.
+
     Returns
     -------
-    rank_var: numpy.array of int
-        The 'rank_var' of each segment ID produced based on
-        MESH modelling standards
-    next_var: numpy.array of int
-        The 'next_var' variable indicating the downstream segment
-        of river reaches corresponding to 'rank_var'
-    seg_id: numpy.array of int
-        The 'seg_id' that has been reordered to match values of
-        `rank_var` and `next_var`.
-    to_segment: numpy.array of int
-        The 'to_segment' that has been reordered to match values
-        of `rank_var` and `next_var`.
-    
-    
+    rank_var : numpy.ndarray
+        Rank of each segment ID, following MESH modelling standards.
+    next_var : numpy.ndarray
+        Downstream segment index for each river reach, matching `rank_var`.
+    seg_id : numpy.ndarray
+        Segment IDs reordered to match `rank_var` and `next_var`.
+    to_segment : numpy.ndarray
+        Downstream segment IDs reordered to match `rank_var` and `next_var`.
+
     Notes
     -----
-    The function is mainly developed by Dr. Ala Bahrami at
-    <ala.bahrami@usask.ca> and Cooper Albano <cooper.albano@usask.ca>
-    as part of the North American MESH model workflow development.
-    Minor changes have been implemented by Kasra Keshavarz
-    <kasra.keshavarz1@ucalgary.ca>.
+    Developed by Dr. Ala Bahrami and Cooper Albano for North American MESH
+    model workflows. Minor changes by Kasra Keshavarz.
 
-    The original workflow is located at the following link:
-    https://github.com/MESH-Model/MESH-Scripts
-    <last accessed on August 29th, 2023>
-    '''
+    Original workflow:
+        https://github.com/MESH-Model/MESH-Scripts
+    """
 
     # extracting numpy array out of input iterables
     seg_arr = np.array(seg)
@@ -142,7 +135,6 @@ def extract_rank_next(
 
     return rank_var, next_var, seg_id, to_segment
 
-
 def _check_geo_obj_dtype(obj):
     # check `obj`'s dtype
     # if it is a path string
@@ -161,7 +153,6 @@ def _check_geo_obj_dtype(obj):
 
     # return a copy of the GeoDataFrame object
     return obj.copy()
-
 
 def _adjust_ids(
     seg_id: np.ndarray,
@@ -214,7 +205,6 @@ def _adjust_ids(
 
     return new_seg_id, new_ds_seg_id
 
-
 def _prepare_landcover_mesh(
     landcover: pd.DataFrame,
     cat_dim: str,
@@ -235,50 +225,23 @@ def _prepare_landcover_mesh(
 
     # remove zero-sum columns
     landcover = landcover.loc[:, landcover.sum(axis=0) > 0]
+
     # removing non-digit characters from columns, if any
     landcover.columns = [int(re.sub('\D', '', c)) for c in landcover.columns]
+
     # set column name for landcover classes
     landcover.columns.name = gru_dim
+
     # adding necessary MESH dummy landcover variable - Hard-coded
     landcover.insert(len(landcover.columns), dummy_col_name, dummy_col_value)
+
     # making an xarray.DataArray
     landcover_da = landcover.stack().to_xarray()
+
     # converting to xr.Dataset
     landcover_ds = landcover_da.to_dataset(name=landcover_ds_name)
 
     return landcover_ds
-
-
-def _set_min_values(
-    ds: xr.Dataset,
-    min_values: Dict[str, float],
-) -> xr.Dataset:
-    '''Setting minimum values (values of the `min_values` 
-    dictionary) for different variables (keys of the 
-    `min_values` dictionary).
-    
-    Parameters
-    ----------
-    ds : xarray.Dataset
-        Dataset object of interest
-    min_values : dict
-        a dictionary with keys corresponding to any of the `ds`
-        variables, and values corresponding to the minimums
-
-    Returns
-    -------
-    ds : xarray.Dataset
-        Dataset with minimum values set
-    '''
-    # make a copy of the dataset
-    ds = ds.copy()
-
-    # set the minimum values
-    for var, val in min_values.items():
-        ds[var] = xr.where(ds[var] <= val, val, ds[var])
-
-    return ds
-
 
 def _fill_na_ds(
     ds: xr.Dataset,
@@ -298,6 +261,34 @@ def _fill_na_ds(
 
     return ds
 
+def _downcast_to_int(
+    ds: xr.Dataset,
+    int_vars: Iterable[str],
+) -> xr.Dataset:
+    '''Downcasts the variables of `ds` to int32 type
+    if they are not already int32.
+    
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Dataset object of interest
+    int_vars : Iterable[str]
+        Iterable of variable names to be downcasted to int32
+
+    Returns
+    -------
+    ds : xarray.Dataset
+        Dataset with specified variables downcasted to int32
+    '''
+    # make a copy of the dataset
+    ds = ds.copy()
+
+    # downcast to int32
+    for var in int_vars:
+        if var in ds and ds[var].dtype != np.int32:
+            ds[var] = ds[var].astype(np.int32)
+
+    return ds
 
 def _prepare_geodataframe_mesh(
     geodf: gpd.GeoDataFrame,
@@ -318,16 +309,13 @@ def _prepare_geodataframe_mesh(
 
     return geodf.set_index(cat_dim).to_xarray()
 
-
 def prepare_mesh_ddb(
     riv: gpd.GeoDataFrame,
     cat: gpd.GeoDataFrame,
     landcover: pd.DataFrame,
     cat_dim: str,
     gru_dim: str,
-    gru_var: str,
     hru_dim: str,
-    hru_var: str,
     gru_names: Sequence[str],
     include_vars: Dict[str, str],
     attr_local: Dict[str, Dict[str, str]],
@@ -338,67 +326,58 @@ def prepare_mesh_ddb(
     ddb_units: Dict[str, str] = None,
     ddb_to_units: Dict[str, str] = None,
 ) -> xr.Dataset:
-    '''Prepares the drainage database (ddb) of the MESH model.
-    The function implements a set of ad-hoc manipulations on
-    the river network and catchment geospatial data to prepare
-    the ddb.
+    """
+    Prepares the drainage database (ddb) for the MESH model.
+
+    This function applies a set of manipulations to river network and catchment
+    geospatial data to construct the drainage database required by MESH.
 
     Parameters
     ----------
-    riv : str of ESRI Shapefile path, or list of paths, or geopandas.GeoDataFrame
-        The path to the ESRI Shapefile of the geospatial object
-        containing LineString(s) of the river network
-    cat : str of ESRI Shapefile path, or list of paths, or geopandas.GeoDataFrame
-        The path to the ESRI Shapefile of the geospatial object
-        containing Polygon(s) and MultiPolygon(s) of the catchments
+    riv : str, list of str, or geopandas.GeoDataFrame
+        Path(s) to ESRI Shapefile(s) or a GeoDataFrame containing river
+        LineString(s).
+    cat : str, list of str, or geopandas.GeoDataFrame
+        Path(s) to ESRI Shapefile(s) or a GeoDataFrame containing catchment
+        Polygon(s) or MultiPolygon(s).
     landcover : pandas.DataFrame
-        Dataframe of land use class fractions (i.e., between 0 and
-        1) seen in each element of `cat`. Each column corresponds to
-        the fraction of each land cover class and each row corres-
-        ponds to each element of `cat`
-    coords : pandas.DataFrame
-        Dataframe of the `cat`'s centroid coordinates, including a
-        column for the latitude and another for the longitude
+        DataFrame of land use class fractions (values between 0 and 1) for each
+        catchment. Columns are land cover classes; rows are catchment elements.
     cat_dim : str
-        The dimension name of the catchments available in `cat`,
-        `riv`, `landcover`, and `coords`
+        Name of the catchment dimension present in `cat`, `riv`, and `landcover`.
     gru_dim : str
-        The dimension name corresponding to the landcover classes
-        after necessary manipulations on `landcover`
+        Name of the landcover class dimension after processing `landcover`.
+    hru_dim : str
+        Name of the hydrological response unit (HRU) dimension for output.
+    gru_names : Sequence of str
+        List of landcover class names, ordered to match processed `landcover`.
     include_vars : dict
-        The keys correspond to the variables of `riv`, `cat`, or
-        `landcover` to be included in the returned xarray.Dataset,
-        and the values correspond to the rename values
+        Dictionary mapping variable names in input data to output names in ddb.
     attr_local : dict
-        The keys correspond to the renamed value of `include_vars`
-        and the values consist of a dictionary with keys as attribute
-        names and values of attribute description
+        Dictionary mapping output variable names to their attribute dictionaries.
     attr_global : dict
-        The keys correspond to the global attribute names and values
-        of attribute description
-    outlet_value : int, optional [defaults to -9999]
-        The outlet value for the 'nextdownid' variable shown in
-        the `cols` dictionary indicating sinking from the system
+        Dictionary mapping global attribute names to their descriptions.
     min_values : dict, optional
-        Set the minimum values corresponding to the variables indicated
-        as dictionary keys. Of course, the keys must have been included
-        as values of the `include_vars` dictionary
+        Minimum values for variables in ddb. Keys must match output variable names.
     fill_na : dict, optional
-        Fill the numpy.nan values found in each xarray.DataArray of
-        `ddb`
-    ordered_dims : Dict[str, array-like], optional
-        Sorting dimensions of the `ddb` taken as keys of the `ordered_dims`
-        and ordered values of each as their corresponding values
+        Values to fill for NaNs in each variable of ddb. Keys are variable names.
+    ordered_dims : dict, optional
+        Dictionary mapping dimension names to ordered values for sorting ddb.
+    ddb_units : dict, optional
+        Dictionary mapping variable names to their units for quantification.
+    ddb_to_units : dict, optional
+        Dictionary mapping variable names to target units for conversion.
 
     Returns
     -------
     ddb : xarray.Dataset
-        drainage database in an xarray.Dataset object with necessary information
+        Drainage database as an xarray.Dataset containing all required variables
+        and attributes for MESH model setup.
 
-    '''
+    """
     # define necessary variables
     geometry_var = 'geometry'  # geopandas.GeoDataFrame geometry column name
-    landcover_var = 'landcover'  # landcover variable name in the object
+    landcover_var = 'landclass'  # landcover variable name in the object
 
     dummy_col = 9999  # MESH's dummy landcover class dimension/column name
     dummy_col_value = 0  # MESH's dummy landcover class value
@@ -410,25 +389,34 @@ def prepare_mesh_ddb(
     riv = _check_geo_obj_dtype(riv)
     cat = _check_geo_obj_dtype(cat)
 
+    # calculate catchment areas in meters squared
+    grid_area = _calculate_polygon_areas(
+        gdf=cat,
+        target_area_unit='m ** 2',
+        equal_area_crs='ESRI:54009'
+    )
+    grid_area['area'] = grid_area['area'].pint.magnitude
+
     # check `landcover` and `coords` dtypes
     if not isinstance(landcover, pd.DataFrame):
         raise TypeError("`landcover` and `coords` must be of type "
                         "pandas.DataFrame")
 
     # make actual xarray.Dataset objects for `riv` and `cat`
-    riv_ds, cat_ds = (_prepare_geodataframe_mesh(geodf,
-                                                 cat_dim=cat_dim,
-                                                 geometry_dim=geometry_var,
-                                                 )
-                      for geodf in [riv, cat])
+    riv_ds, cat_ds, grid_area_ds = (_prepare_geodataframe_mesh(
+            geodf,
+            cat_dim=cat_dim,
+            geometry_dim=geometry_var)
+        for geodf in [riv, cat, grid_area])
 
     # make xarray.Dataset object for `landcover`
-    landcover_ds = _prepare_landcover_mesh(landcover,
-                                           cat_dim=cat_dim,
-                                           gru_dim=gru_dim,
-                                           landcover_ds_name=landcover_var,
-                                           dummy_col_name=dummy_col,
-                                           dummy_col_value=dummy_col_value)
+    landcover_ds = _prepare_landcover_mesh(
+        landcover,
+        cat_dim=cat_dim,
+        gru_dim=gru_dim,
+        landcover_ds_name=landcover_var,
+        dummy_col_name=dummy_col,
+        dummy_col_value=dummy_col_value)
 
     # add landcover classes names present in the setup to `ddb`
     # note that the last landcover class/name is a dummy one
@@ -443,7 +431,7 @@ def prepare_mesh_ddb(
         },
         "dims": gru_dim,
         "data_vars": {
-            "landcover_names": {
+            "landclass_names": {
                 "dims": gru_dim,
                 "data": [gru_names[c] for c in _gru_list[0:-1]] + ['Dump']
             },
@@ -452,10 +440,12 @@ def prepare_mesh_ddb(
     lc_names_da = xr.Dataset.from_dict(lc_names)
 
     # making a list of all xarray.Dataset objects
-    ds_list = [landcover_ds,
-               lc_names_da,
-               riv_ds,
-               cat_ds]
+    ds_list = [
+        landcover_ds,
+        lc_names_da,
+        riv_ds,
+        cat_ds,
+        grid_area_ds]
 
     # merging all xarray objects into one
     ddb = xr.combine_by_coords(ds_list, compat='override')
@@ -470,16 +460,12 @@ def prepare_mesh_ddb(
         ddb = _fill_na_ds(ds=ddb,
                           na_values=fill_na)
 
-    # assinging minimum values for `ddb`
-    if min_values is not None:
-        ddb = _set_min_values(ds=ddb,
-                              min_values=min_values)
-
     # assigning local attributes for each variable
     if attr_local:
         for var, val in attr_local.items():
-            for attr, desc in val.items():
-                ddb[var].attrs[attr] = desc
+            if var in ddb:
+                for attr, desc in val.items():
+                    ddb[var].attrs[attr] = desc
 
     # assigning global attributes for `ddb`
     if attr_global:
@@ -504,6 +490,10 @@ def prepare_mesh_ddb(
 
     # if `to_units` is defined
     if ddb_to_units:
+        # if dimensionless values exists, pop them
+        ddb_to_units = {k: v for k, v in ddb_to_units.items()
+                        if v != 'dimensionless'}
+        # implement the conversion
         ddb = ddb.pint.to(units=ddb_to_units)
 
     # print the netCDF file
@@ -520,11 +510,33 @@ def prepare_mesh_ddb(
     # change the value of `gru` dimension
     ddb[gru_dim] = range(0, len(ddb[gru_dim]))
 
+    # # assinging minimum values for `ddb`
+    if min_values is not None:
+        # only apply to variables that are present in `ddb`
+        min_values = {k: v for k, v in min_values.items()
+                      if k in ddb}
+
+        # if min_values turns to be non-empty
+        if min_values:
+            for var, val in min_values.items():
+                ddb[var] = ddb[var].where(ddb[var] > val,
+                                          val,
+                                          drop=False)
+
+    # downcast specific variables to int32 if exist
+    int_vars = ['IAK', 'Rank', 'Next']
+    for var in int_vars:
+        if var not in ddb:
+            int_vars.remove(var)
+
+    # calling the downcast function
+    ddb = _downcast_to_int(ddb, int_vars=int_vars)
+
     # assure the order of `hru_dim` is correct
     ddb = ddb.loc[{hru_dim: cat_dim_array}].copy()
 
     # rename coordinate variable names to avoid confusion with dimension
     # names
-    ddb = ddb.drop_vars(gru_dim) 
+    ddb = ddb.drop_vars(gru_dim)
 
     return ddb
