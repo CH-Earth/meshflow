@@ -1,5 +1,5 @@
-Usage
-=====
+Quick Usage
+===========
 
 Installation
 ------------
@@ -49,6 +49,11 @@ the ``MESHWorkflow`` and create an instance tailored to your domain of interest.
    work in progress.
 
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Configuration Contents
+
+
 Configuration
 -------------
 The options and arguments to the package is critical in configuring an accurate
@@ -72,9 +77,9 @@ The following attributes are typically required:
 River Network and Relevant Attributes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``riv`` Object and Main Attributes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The ``riv`` file typically contains information about the river network, such as river IDs,
+River Network and Relevant Attributes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The ``riv`` file/object typically contains information about the river network, such as river IDs,
 geometry, and flow direction. The flow direction is essential for the model to understand
 how water moves through the river network. ``main_id`` and ``ds_main_id`` variables are used
 to identify the main river and its downstream counterpart, respectively, in the ``riv``
@@ -425,7 +430,7 @@ Land Cover Data
 ---------------
 The land cover data is essential for the model to simulate hydrological processes
 accurately for each Grouped Response Unit (GRU). Currently, only classifications
-produced as part of the `gistool <https://gistool.readthedocs.io/en/latest/>_`
+produced as part of the `gistool <https://gistool.readthedocs.io/en/latest/>`_
 package are supported.
 
 A typical land cover data should include the following format:
@@ -535,6 +540,25 @@ Example structure:
        "run_options": {...},
    }
 
+Therefore, the ``settings`` parameter consists of the following sections:
+
+- ``core``: Controls the main simulation specifics, such as time periods,
+  time zones, forcing files, and output paths.
+
+- ``class_params``: Defines measurement heights for meteorological variables,
+  copyright information, and GRU (Grouped Response Unit) classifications
+  that `CLASS` accepts.
+
+- ``hydrology_params``: Contains parameters related to hydrological processes,
+  such as GRU dependent and independent hydrological variables, and routing
+  options.
+
+- ``run_options``: Specifies options for running the simulation, including
+  parallelization settings, logging levels, and runtime configurations. Also,
+  users can specify the presence of available physical processes
+  in the model, such as the activation of the ``PBMS`` module.
+
+
 Core Settings
 ^^^^^^^^^^^^^
 
@@ -553,13 +577,14 @@ For example:
        "simulation_end_date": "2010-05-18 18:00:00",  # End date of simulation
        "forcing_time_zone": "UTC",  # Time zone of forcing data
        # "model_time_zone": "America/Edmonton",  # Optional: time zone for the model
-       "output_path": "results",  # Path to save model outputs
+       "output_path": "results",  # Path to save model outputs relative to model instance's path
    }
 
 
 - ``forcing_files``: Specify if multiple forcing files are used (e.g., "multiple" or "single").
 
-- ``forcing_start_date``: Start date of the forcing data (string, format "YYYY-MM-DD HH:MM:SS").
+- ``forcing_start_date``: Start date of the forcing data (string, accepting
+  various formats, such as ``YYYY-MM-DD HH:MM:SS``).
 
 - ``simulation_start_date``: Start date of the simulation.
 
@@ -568,8 +593,10 @@ For example:
 - ``forcing_time_zone``: Time zone of the forcing data (e.g., "UTC").
 
 - ``model_time_zone``: (Optional) Time zone for the model (e.g., "America/Edmonton").
+  If not specified, the model will attempt to determine the time zone from the location
+  of the subbasins.
 
-- ``output_path``: Path to save model outputs.
+- ``output_path``: (Optional) Path to save model outputs. Default value is ``results``.
 
 
 Class Parameters
@@ -577,92 +604,208 @@ Class Parameters
 
 The ``class_params`` section defines measurement heights for meteorological
 variables, copyright information, and GRU (Grouped Response Unit) classifications
-that `CLASS` accepts. All the land classes must be further categorized into
-different classes, such as "needleleaf", "broadleaf", "grass", "water",
-"crops", "barrenland", "urban", etc. The GRU classifications are
-used to categorize the land cover classes into different groups for
-hydrological modeling.
+and parameters that `CLASS` accepts.
 
 For example:
 
 .. code-block:: python
    :linenos:
 
-   "class_params": {
-       "measurement_heights": {
-           "wind_speed": 40,
-           "specific_humidity": 40,
-           "air_temperature": 40,
-           "roughness_length": 50,
-       },
-       "copyright": {
-           "author": "University of Calgary",
-           "location": "University of Calgary",
-       },
-       "grus": {
-           0: {"class": "needleleaf"},
-           1: {"class": "needleleaf"},
-           2: {"class": "needleleaf"},
-           3: {"class": "broadleaf"},
-           4: {"class": "broadleaf"},
-           5: {"class": "broadleaf"},
-           6: {"class": "broadleaf"},
-           7: {"class": "grass"},
-           8: {"class": "grass"},
-           9: {"class": "grass"},
-           10: {"class": "grass"},
-           11: {"class": "grass"},
-           12: {"class": "grass"},
-           13: {"class": "grass"},
-           14: {"class": "water"},
-           15: {"class": "crops"},
-           16: {"class": "barrenland"},
-           17: {"class": "urban"},
-           18: {"class": "water"},
-           19: {"class": "water"},
-       },
-   }
+   >>> from meshflow import MESHWorkflow
+   >>> mesh_workflow_instance = MESHWorkflow(
+   ...     ...,
+   ...     class_params={
+   ...         "measurement_heights": {
+   ...             "wind_speed": 40,
+   ...             "specific_humidity": 40,
+   ...             "air_temperature": 40,
+   ...             "roughness_length": 50,
+   ...         },
+   ...         "copyright": {
+   ...             "author": "University of Calgary",
+   ...             "location": "University of Calgary",
+   ...         },
+   ...         "grus": {
+   ...             0: "needleleaf",
+   ...             1: {
+   ...                 "class": "needleleaf",
+   ...                 "LNZ0": -1.4,
+   ...             },
+   ...             2: "needleleaf",
+   ...             3: "broadleaf",
+   ...             4: "broadleaf",
+   ...             5: {
+   ...                 "class": "broadleaf",
+   ...                 "ROOT": 0.5,
+   ...             },
+   ...             6: "broadleaf",
+   ...             7: "grass",
+   ...             8: "grass",
+   ...             9: "grass",
+   ...             10: "grass",
+   ...             11: "grass",
+   ...             12: "grass",
+   ...             13: "grass",
+   ...             14: "water",
+   ...             15: "crops",
+   ...             16: "barrenland",
+   ...             17: "urban",
+   ...             18: "water",
+   ...             19: "water",
+   ...         }
+   ...     },
+   ...     ...,
+   ... )
 
 - ``measurement_heights``: Dictionary specifying heights (in meters) for wind speed,
-  specific humidity, air temperature, and roughness length.
+  specific humidity, air temperature, and roughness height.
 
-- ``copyright``: Dictionary with author and location information.
+- ``copyright``: (Optional). Dictionary with author and location information.
 
 - ``grus``: Dictionary mapping GRU indices to land cover classes (e.g., "needleleaf",
   "broadleaf", "grass", "water", "crops", "barrenland", "urban").
+
+``grus``
+^^^^^^^^
+All the land classes must be further categorized into different classes based on
+`CLASS`'s assumptions. These classes are:
+
+- ``needleleaf``,
+
+- ``broadleaf``,
+
+- ``grass``,
+
+-  ``crops``,
+
+- ``barrenland``, (or ``water`` or ``urban``)
+ 
+One can use the ``grus`` dictionary inside ``class_params`` to define the GRU
+class for each subbasin.
+
+To further define ``CLASS`` parameters for each GRU, you can use a dictionary
+for each class and define parameter values for each GRU. Otherwise, a filler
+value (**not default**) will be used for each GRU. The filler values are not
+accurate for process simulation, and users should use calibration workflows
+to determine the accurate values for each GRU.
+
+In the example provided above, the ``grus`` dictionary maps GRU indices
+to land cover classes the ``CLASS`` model accepts.
+
+.. note::
+   
+   The GRU indices should match the indices in the land cover data provided
+   in the ``landcover`` parameter. The values should be integers representing
+   the land cover class for each subbasin, and the classes should be defined
+   in the ``gistool`` package.
+
+.. note::
+   
+   The values of the ``grus`` dictionary can either be a string representing
+   the land cover class or a dictionary containing parameters for each GRU.
+   Or, it can be a dictionary containing parameters for each GRU class. If a
+   dictionary is provided, the ``CLASS`` type can be defined using the
+   ``class`` keyword in the dictionary. An instance is provided for class 5
+   in the example above, where the ``ROOT`` parameter is set to 0.5. In another
+   example, the ``LNZ0`` parameter is set to -1.4 for class 1. These parameters
+   are specific to the GRU class and can be defined based on the user's
+   requirements.
+   
+.. note:: 
+   All relevant class parameters can be defined in the dictionary, and the
+   ``CLASS`` model will use these parameters for the GRU class. If not provided,
+   a default value will be used for the GRU class, which may not be accurate
+   for process simulation. Users should use calibration workflows to determine
+   the accurate values for each GRU class.
+
+.. note::
+   A list of CLASS parameters can be found in the
+   `MESH documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini>`_.
 
 
 Hydrology Parameters
 ^^^^^^^^^^^^^^^^^^^^
 
-The ``hydrology_params`` section is reserved for hydrology-specific parameters.
-Add any custom hydrological settings required for your simulation.
+The ``hydrology_params`` section allows you to specify parameters related
+to hydrological processes and routing options for the model. This section
+is structured to provide both routing parameters and GRU-dependent
+hydrological parameters.
 
 For example:
 
 .. code-block:: python
    :linenos:
 
-   "hydrology_params": {
-       # Add hydrology-specific parameters here
-   }
+   >>> from meshflow import MESHWorkflow
+   >>> mesh_workflow_instance = MESHWorkflow(
+   ...     ...,
+   ...     settings={
+   ...         ...,
+   ...         "hydrology_params": {
+   ...             "routing": [
+   ...                 {"R2N": 0.3},
+   ...             ],
+   ...             "hydrology": {
+   ...                 5: {
+   ...                     "ZSNL": 2
+   ...                 },
+   ...             },
+   ...         },
+   ...         ...,
+   ...     },
+   ... )
+
+
+- ``routing``: A list of dictionaries specifying routing parameters.
+  Each dictionary can define parameters such as ``R2N`` (e.g.,
+  river-to-network routing coefficient) and other routing-related
+  options as required by the model.
+
+- ``hydrology``: A dictionary mapping GRU indices to hydrological
+  parameters. Each key is a GRU index (e.g., 5), and the value is a
+  dictionary of hydrological parameters for that GRU. For example,
+  ``ZSNL`` can be set for a specific GRU class.
+
+.. note::
+   The available hydrological and routing parameters depend on the
+   model configuration and should be set according to your simulation
+   requirements. If a parameter is not provided, a default value may
+   be used, which may not be optimal for your domain. Users are encouraged
+   to consult the `model documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390211/MESH_parameters_hydrology.ini>`_
+   for a full list of available hydrology and routing parameters.
+
 
 Run Options
 ^^^^^^^^^^^
 
-The ``run_options`` section is used for advanced run options and model
-configuration. Refer to the package documentation for available options and their usage.
+.. warning::
+   Currently, the ``run_options`` section is not changeable, but it will be
+   developed while adding water management options to the model.
 
-Example:
+Other Relevant Options
+----------------------
 
-.. code-block:: python
-   :linenos:
+The following options are also available in the ``settings`` parameter and
+are briefly described below:
 
-   "run_options": {
-       # Add run options and advanced settings here
-   }
+- ``forcing_local_attrs``: A dictionary describing local attributes for the
+  forcing data.
 
-These settings allow users to tailor the workflow to their specific domain
-and simulation requirements. For more details on available options, refer
-to the package documentation or the source code.
+- ``forcing_global_attrs``: A dictionary describing global attributes for the
+  forcing data.
 
+- ``ddb_local_attrs``: A dictionary describing local attributes for the
+  drainage database (DDB).
+
+- ``ddb_global_attrs``: A dictionary describing global attributes for the
+  drainage database (DDB).
+
+- ``ddb_min_values``: A dictionary describing minimum values for the drainage
+  database (DDB).
+
+- ``gru_dim``: The dimension name for the Grouped Response Unit (GRU).
+
+- ``hru_dim``: The dimension name for the Hydrological Response Unit (HRU).
+
+- ``outlet_value``: The value used to represent the outlet in the model
+  (default is ``-9999``).

@@ -39,6 +39,7 @@ climate models.
    :caption: Contents:
 
    configuration
+   example
 
 
 .. rubric:: Footnotes
