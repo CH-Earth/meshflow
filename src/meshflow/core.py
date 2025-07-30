@@ -1299,11 +1299,33 @@ class MESHWorkflow(object):
                 'routing' in self.settings['hydrology_params'] and
                 len(self.settings['hydrology_params']['routing']) > 0
             ):
-                routing_dict = self.settings['hydrology_params']['routing']
+                for iak_class, r_dict in enumerate(self.settings['hydrology_params']['routing']):
+                    # check if the class is in the routing_dict
+                    if iak_class < len(routing_dict):
+                        # assure that the params keys are lower-cased
+                        r_dict = {k.lower(): v for k, v in r_dict.items()}
+                        # update the routing dictionary with user inputs
+                        routing_dict[iak_class].update(r_dict)
+                    else:
+                        warnings.warn(
+                            f"Routing class {iak_class} not found in routing_dict. Skipping...",
+                            UserWarning,
+                        )
 
             # update the hydrology dictionary
             if 'hydrology' in self.settings['hydrology_params']:
-                hydrology_dict = self.settings['hydrology_params']['hydrology']
+                for gru, params in self.settings['hydrology_params']['hydrology'].items():
+                    # check if gru is in the hydrology_dict
+                    if gru in hydrology_dict:
+                        # assure that the params keys are lower-cased
+                        params = {k.lower(): v for k, v in params.items()}
+                        # update the hydrology dictionary with user inputs
+                        hydrology_dict[gru].update(params)
+                    else:
+                        warnings.warn(
+                            f"GRU {gru} not found in landcover classes. Skipping...",
+                            UserWarning,
+                        )
 
         # build the hydrology text file
         hydrology_text = utility.render_hydrology_template(
