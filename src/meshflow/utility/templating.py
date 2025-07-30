@@ -201,7 +201,7 @@ def render_class_template(
         columns="columns",
     )
 
-    return content
+    return content if content.endswith('\n') else content + '\n'
 
 
 def render_hydrology_template(
@@ -278,7 +278,7 @@ def render_hydrology_template(
         gru_dict=hydrology_params,
     )
 
-    return content
+    return content if content.endswith('\n') else content + '\n'
 
 
 def render_run_options_template(
@@ -323,4 +323,4 @@ def render_run_options_template(
     # create content
     content = template.render(options_dict = options)
 
-    return content
+    return content if content.endswith('\n') else content + '\n'
