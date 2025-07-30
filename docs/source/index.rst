@@ -3,49 +3,43 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Meshflow's documentation!
+Welcome to MESHflow's documentation!
 ====================================
-``Meshflow`` aims to facilitate setting up MESH models for any temporal and
-spatial domain of interest. This package is prepared in Python and can be
-accessed from command line using its Command Line Interface. 
 
-``MESH`` (Modélisation Environnementale communautaire - Surface Hydrology) is
-the hydrology land-surface scheme (HLSS) of Environment and Climate Change
-Canada's (ECCC's) community environmental modelling system (Pietroniro et
-al. 2007) [#]_, and is complimentary to ECCC's GEM-Hydro modelling platform.
-MESH allows different surface component models to coexist within the same
-modelling framework so that they can easily be compared for the same
-experiment using exactly the same forcings, interpolation procedures,
-grid, time period, time step and output specifications. An important
-feature of MESH is its ability to read atmospheric forcings from files
-instead of obtaining them from an atmospheric model. This makes it
-possible to test changes to the land surface schemes offline and to drive
-the HLSS with forcing data from other sources such as direct observations
-or reanalysis products.
+``MESHflow`` streamlines the setup of MESH models for any temporal or
+spatial domain. Written in Python, it is accessible via a Command Line
+Interface.
 
-Early stages and recent evolution of Environment Canada's
-atmospheric-hydrologic-land-surface modelling system are described in
-Pietroniro et al. (2007) and Wheater et al. (2022) [#]_. A conceptual framework
-for model development was initiated using different degrees of model
-coupling that range from a linked model which requires separate
-calibration of the atmospheric model and the hydrological model to a
-complete two way coupled model Soulis et al. (2005) [#]_. MESH evolved from the
-WATCLASS model which links WATFLOOD routing model to the Canadian Land
-Surface Scheme (CLASS), was used as a basis for coupling with both weather
-and climate atmospheric models.
+``MESH`` (Modélisation Environnementale communautaire - Surface Hydrology)
+is the hydrology land-surface scheme (HLSS) of Environment and Climate
+Change Canada's (ECCC's) community environmental modelling system
+(Pietroniro et al. 2007) [#]_. It complements ECCC's GEM-Hydro modelling
+platform. MESH supports multiple surface component models within a single
+framework, enabling direct comparison using identical forcings,
+interpolation, grids, periods, time steps, and output settings. A key
+feature is its ability to read atmospheric forcings from files, allowing
+offline testing and use of data from observations or reanalysis products.
+
+The evolution of Environment Canada's atmospheric-hydrologic-land-surface
+modelling system is detailed in Pietroniro et al. (2007) and Wheater et
+al. (2022) [#]_. Model development began with varying degrees of coupling,
+from linked models requiring separate calibration to fully coupled systems
+(Soulis et al. 2005) [#]_. MESH originated from the WATCLASS model, which
+integrated the WATFLOOD routing model with the Canadian Land Surface
+Scheme (CLASS), and served as a foundation for coupling with weather and
+climate models.
 
 .. note::
    This project is under active development. Current release is
-   `v0.1.0-dev0`. 
+   `v0.1.0-dev3`. 
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   usage
-   examples
-   applications using Digital Research Alliance (DRA) HPCs
+   configuration
+   example
 
 
 .. rubric:: Footnotes

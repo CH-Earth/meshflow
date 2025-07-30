@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'meshflow'
-copyright = '2023, Kasra Keshavarz'
-author = 'Kasra Keshavarz'
-release = '0.1.0-dev0'
+copyright = '2025, University of Calgary'
+author = 'University of Calgary'
+release = '0.1.0-dev3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
