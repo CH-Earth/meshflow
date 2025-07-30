@@ -40,6 +40,7 @@ climate models.
 
    configuration
    example
+   api
 
 
 .. rubric:: Footnotes

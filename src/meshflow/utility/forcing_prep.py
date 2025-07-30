@@ -57,13 +57,14 @@ def prepare_mesh_forcing(
         in the correct chunk format and are read directly.
         If `aggregate` is True, CDO is used to merge the files.
         Note that CDO is a binary dependency and must be installed separately.
-        The merged dataset is returned as an xarray.Dataset.
     local_attrs : dict of dict, optional
         Dictionary of local attributes for each forcing variable.
         The keys are variable names and the values are dictionaries
         of attributes to assign to each variable.
-        Example: {'air_temperature': {'long_name': 'Air Temperature',
-                                       'units': 'K'}}
+        
+        Example:
+            {'air_temperature': {'long_name': 'Air Temperature',
+                                 'units': 'K'}}
     global_attrs : dict of str, optional
         Dictionary of global attributes for the output dataset. The keys are
         attribute names and the values are their descriptions.
@@ -87,8 +88,8 @@ def prepare_mesh_forcing(
       reads one file. CDO is used for merging, but the function returns an
       xarray.Dataset.
     - The `variables` sequence should include:
-        'air_pressure', 'specific_humidity', 'air_temperature', 'wind_speed',
-        'precipitation', 'shortwave_radiation', 'longwave_radiation'.
+      'air_pressure', 'specific_humidity', 'air_temperature', 'wind_speed',
+      'precipitation', 'shortwave_radiation', 'longwave_radiation'.
     - The `units` and `to_units` dictionaries must contain the same keys as
       `variables`.
     - The merge functionality may be expanded in future versions.
