@@ -9,7 +9,7 @@ geopandas>=0.13.2
 pandas>=1.4.0
 numpy>=1.22.2
 typing_extensions>=4.7.1
-hydrant>=0.1.0-dev0
+hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git
 netCDF4>=1.6.4
 cdo>=1.5.6
 Jinja2>=3.1.4
