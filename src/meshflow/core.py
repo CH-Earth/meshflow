@@ -1677,7 +1677,9 @@ class MESHWorkflow(object):
 
             # assure the datatype makes sense
             for col in cols:
-                riv_s = riv_s.astype(np.int64)
+                # if the data can be an integer, then downcast
+                if pd.api.types.is_integer_dtype(riv_s[col]):
+                    riv_s[col] = riv_s[col].astype(np.int64)
 
             # add the new series to the `riv` object
             riv_copy = pd.concat([riv_copy, riv_s.to_frame().T])
