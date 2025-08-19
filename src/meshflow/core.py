@@ -431,6 +431,11 @@ class MESHWorkflow(object):
         _rows = [row for row in _lc_df.index if _seg_ids.isin([row]).any()]
         _cols = [col for col in _lc_df.columns if
                  col.startswith(_lc_prefix)]
+        
+        # downcast landcover index values to integer if possible
+        # FIXME: this will need to be flexible
+        if _lc_df.index.dtype.kind in 'iu':
+            _lc_df.index = _lc_df.index.astype(np.int64)
 
         # return a copy of the dataframe including hrus available in the
         # input domain and only fractions
