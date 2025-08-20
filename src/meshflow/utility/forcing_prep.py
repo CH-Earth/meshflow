@@ -155,6 +155,12 @@ def prepare_mesh_forcing(
         for attr, desc in global_attrs.items():
             ds.attrs[attr] = desc
 
+    # assure the dtype of `subbasin` is integer
+    try: 
+        ds['subbasin'] = ds['subbasin'].astype(int)
+    except:
+        raise TypeError("`subbasin` values should be able to be downcasted to integer.")
+
     return ds
 
 

@@ -539,4 +539,7 @@ def prepare_mesh_ddb(
     # names
     ddb = ddb.drop_vars(gru_dim)
 
+    # assure the subbasin values are `integer`
+    ddb['subbasin'] = ddb['subbasin'].astype(int)
+
     return ddb
