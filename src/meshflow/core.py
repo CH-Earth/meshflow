@@ -427,6 +427,11 @@ class MESHWorkflow(object):
                              index_col=0,
                              header=0)
 
+        # if a landcover class with `9999` value is present, change it to 
+        if 'frac_9999' in _lc_df.columns:
+            # rename the value to frac_255 meaning no value
+            _lc_df = _lc_df.rename(columns={'frac_9999': 'frac_255'})
+
         # downcast landcover index values to integer if possible
         # FIXME: this will need to be flexible
         if pd.api.types.is_float_dtype(_lc_df.index):
@@ -441,10 +446,9 @@ class MESHWorkflow(object):
         _rows = [row for row in _lc_df.index if _seg_ids.isin([row]).any()]
         _cols = [col for col in _lc_df.columns if
                  col.startswith(_lc_prefix)]
-        
+ 
         # return a copy of the dataframe including hrus available in the
         # input domain and only fractions
-
         return _lc_df.loc[_rows, _cols].copy()
 
     @property
