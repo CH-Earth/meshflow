@@ -142,7 +142,6 @@ def render_class_template(
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
-    print('class_grus: ', class_grus)
 
     for gru, params in class_grus.items():
         d = {}
@@ -168,8 +167,6 @@ def render_class_template(
                 d[param_type][f'line{param_line}'] = {param: param_value}
         gru_block['vars'].append(d)
 
-    print('before: ', gru_block)
-
     # deep update GRU blocks
     for block in gru_block['vars']:
         new_data = copy.deepcopy(data)
@@ -179,8 +176,6 @@ def render_class_template(
 
         # update the block dictionary
         populating_list.append(it)
-
-    print('after: ', gru_block)
 
     # update the class parameters with the populated list
     # gru_block['vars'] is populated based on the assumption that
