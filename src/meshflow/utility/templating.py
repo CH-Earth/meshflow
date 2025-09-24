@@ -142,6 +142,7 @@ def render_class_template(
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
+
     for gru, params in class_grus.items():
         d = {}
         for param, param_value in params.items():
@@ -151,10 +152,19 @@ def render_class_template(
             param_line = gru_lines[param]
             param_type = gru_types[param]
 
+            # add the line number as a key to the parameter type dictionary
+            # if the `param_type` key does not exist, add it first
+            if param_type not in d.keys():
+                d[param_type] = {}
+
+            # ensure the line key exists
+            if f'line{param_line}' not in d[param_type].keys():
+                d[param_type][f'line{param_line}'] = {}  # ensure the key exists
+
             if param_type in d.keys():
-                d[param_type].update({f'line{param_line}': {param: param_value}})
+                d[param_type][f'line{param_line}'].update({param: param_value})
             else:
-                d[param_type] = {f'line{param_line}': {param: param_value}}
+                d[param_type][f'line{param_line}'] = {param: param_value}
         gru_block['vars'].append(d)
 
     # deep update GRU blocks
