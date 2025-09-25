@@ -775,11 +775,6 @@ class MESHWorkflow(object):
         Initialize the MESH workflow by setting up drainage database and
         forcing objects
         """
-        # Add artificial river segments subsequent to the outlets to have
-        # MESH route the last segments properly, and also faciliate the 
-        # setup for single sites.
-        self.riv, self.cat, self.landcover, self.artif_correspondence = self._add_artificial_outlet_segments(self.riv, self.cat, self.landcover)
-
         # initialize MESH-specific variables including `rank` and `next`
         # and the re-ordered `main_seg` and `ds_main_seg`;
         # This will assign: 1) self.rank, 2) self.next, 3) self.main_seg,
@@ -1033,15 +1028,6 @@ class MESHWorkflow(object):
                 # modify adhoc mesh variables
                 ds = self._adhoc_mesh_vars(ds)
 
-                # for the artificial segments, we need to add the forcing
-                if hasattr(self, 'artif_correspondence'):
-                    for outlet, artif_outlet in self.artif_correspondence.items():
-                        for var in self.forcing_vars.values():
-                            ds[var] = ds[var].sel(subbasin=artif_outlet).where(
-                                ~ds[var].sel(subbasin=artif_outlet).isnull(),
-                                ds[var].sel(subbasin=outlet)
-                            ).combine_first(ds[var])
-
                 # modify time encoding of the forcing object, though MESH
                 # does not care about the time encoding anymore >r1860
                 ds = self._modify_forcing_encodings(ds)
@@ -1080,15 +1066,6 @@ class MESHWorkflow(object):
 
             # modify adhoc mesh variables
             ds = self._adhoc_mesh_vars(ds)
-
-            # for the artificial segments, we need to add the forcing
-            if hasattr(self, 'artif_correspondence'):
-                for outlet, artif_outlet in self.artif_correspondence.items():
-                    for var in self.forcing_vars.values():
-                        ds[var] = ds[var].sel(subbasin=artif_outlet).where(
-                            ~ds[var].sel(subbasin=artif_outlet).isnull(),
-                            ds[var].sel(subbasin=outlet)
-                        ).combine_first(ds[var])
 
             # modify time encoding of the forcing object, though MESH
             # does not care about the time encoding anymore >r1860
@@ -1240,7 +1217,7 @@ class MESHWorkflow(object):
                     warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
 
         # generate the CLASS text file
-        class_text = utility.render_class_template(
+        self.class_text = utility.render_class_template(
             class_info=class_info,
             class_case=class_case,
             class_grus=class_gru,
@@ -1248,7 +1225,7 @@ class MESHWorkflow(object):
 
         # if return is requested, return the class text
         if return_text:
-            return class_text
+            return self.class_text
 
     def init_hydrology(
         self,
@@ -1342,14 +1319,14 @@ class MESHWorkflow(object):
                         )
 
         # build the hydrology text file
-        hydrology_text = utility.render_hydrology_template(
+        self.hydrology_text = utility.render_hydrology_template(
             routing_params=routing_dict,
             hydrology_params=hydrology_dict,
         )
 
         # if return is requested, return the hydrology text
         if return_text:
-            return hydrology_text
+            return self.hydrology_text
 
         return
 
@@ -1609,147 +1586,9 @@ class MESHWorkflow(object):
         # save the run options text file
         run_options_file = 'MESH_input_run_options.ini'
         with open(os.path.join(output_dir, run_options_file), 'w') as f:
-            f.write(self.run_options_text)
+            f.write(self.options_text)
 
         return
-
-    def _add_artificial_outlet_segments(
-        self,
-        riv: gpd.GeoDataFrame,
-        cat: gpd.GeoDataFrame,
-        landcover: pd.DataFrame,
-    ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-        """
-        Add artificial river segments after outlets for proper MESH routing and
-        single site setup.
-
-        Parameters
-        ----------
-        riv : geopandas.GeoDataFrame
-            River segments dataframe.
-        cat : geopandas.GeoDataFrame
-            Catchment polygons dataframe.
-        landcover : pandas.DataFrame
-            Landcover fractions dataframe.
-
-        Returns
-        -------
-        riv_copy : geopandas.GeoDataFrame
-            Modified river segments with artificial outlet added.
-        cat : geopandas.GeoDataFrame
-            Unchanged catchment polygons dataframe.
-        landcover : pandas.DataFrame
-            Unchanged landcover fractions dataframe.
-        correspondence : dict
-            Mapping of original outlet IDs to artificial outlet IDs.
-
-        Notes
-        -----
-        Adds an artificial outlet segment with ID one greater than the maximum
-        outlet segment ID. Facilitates routing for last segments and single site
-        setups.
-        """
-        # create a copy of the river segments
-        riv_copy = riv.copy()
-
-        # assign proper variable for outlet segments to be used
-        # in the workflow
-        outlet_segments = riv_copy[riv_copy[self.ds_main_id] == self.outlet_value]
-        outlet_segment_ids = outlet_segments[self.main_id].to_list()
-
-        # assign `main_id` as the index to facilitate the workflow
-        riv_copy.set_index(self.main_id, drop=False, inplace=True)
-
-        # artificial outlet segment id is one more than the
-        # maximum of existing segments, assuming IDs are integer
-        # values
-        artif_outlet_id = outlet_segment_ids[0] + 1
-
-        # correspondence dictionary
-        correspondence = {}
-
-        for outlet in outlet_segment_ids:
-            # right off the bat, create a correspondence entry
-            # with the key being the outlet and the value being
-            # its artificial outlet segment ID
-            correspondence[outlet] = artif_outlet_id
-
-            ## river stuff
-            # build preliminray data dictionary
-            riv_data = {
-                self.main_id: artif_outlet_id,
-                self.ds_main_id: self.outlet_value,
-            }
-
-            # add other columns to the `riv_data` dictionary
-            cols = set(riv_copy.columns) - set([self.main_id, self.ds_main_id, 'geometry'])
-            for col in cols:
-                riv_data[col] = riv_copy.loc[outlet, col]
-
-            # create a pandas.Series
-            riv_s = pd.Series(riv_data, name=artif_outlet_id)
-
-            # assure the datatype makes sense
-            for col in cols:
-                # if the data can be an integer, then downcast
-                if pd.api.types.is_integer_dtype(riv_s[col]):
-                    riv_s[col] = riv_s[col].astype(np.int64)
-
-            # add the new series to the `riv` object
-            riv_copy = pd.concat([riv_copy, riv_s.to_frame().T])
-
-            # assign the geometry value
-            riv_copy.loc[artif_outlet_id, 'geometry'] = riv_copy.loc[outlet, 'geometry']
-
-            # modify the `outlet` downstream value to be artif_outlet_id
-            riv_copy.loc[outlet, self.ds_main_id] = artif_outlet_id
-
-
-            ## catchment stuff
-            cat_copy = cat.copy()
-            # also add a dummy catchment value in `cat`
-            cat_copy.set_index(self.main_id, drop=False, inplace=True)
-
-            # create a new catchment with the same ID as the
-            # artificial outlet segment
-            cat_data = {
-                self.main_id: artif_outlet_id,
-            }
-
-            # add other columsn tot he `cat_data` dictionary
-            cols = set(cat_copy.columns) - set([self.main_id, 'geometry'])
-            for col in cols:
-                cat_data[col] = cat_copy.loc[outlet, col]
-
-            # create a pandas.Series ouf the `cat_data` dictionary
-            cat_s = pd.Series(cat_data, name=artif_outlet_id)
-
-            # add the new series to the `cat` object
-            cat_copy = pd.concat([cat_copy, cat_s.to_frame().T])
-
-            # assign proper data types to the series
-            cat_copy[self.main_id] = cat_copy[self.main_id].astype(np.int64)
-
-            # assign the geometry value
-            cat_copy.loc[artif_outlet_id, 'geometry'] = cat_copy.loc[outlet, 'geometry']
-
-            ## landcover stuff
-            # create a new landcover segment with the same ID as the
-            # artificial outlet segment
-            landcover_copy = landcover.copy()
-
-            # add an artificial landcover value for the new segment
-            landcover_copy.loc[artif_outlet_id] = landcover_copy.loc[outlet]
-
-            # increase the `artif_outlet_id` for the next
-            # outlet segment
-            artif_outlet_id += 1
-
-        # reset the index of the `riv` and `cat` objects
-        riv_copy.reset_index(drop=True, inplace=True)
-        cat_copy.reset_index(drop=True, inplace=True)
-
-        return riv_copy, cat_copy, landcover_copy, correspondence
 
     def _init_idx_vars(self):
         """
