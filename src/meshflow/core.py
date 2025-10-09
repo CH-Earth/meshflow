@@ -1036,9 +1036,18 @@ class MESHWorkflow(object):
                 if save:
                     file_name = os.path.basename(forcing_file)
                     # save the forcing object to a file
-                    ds.to_netcdf(os.path.join(save_path, file_name),
-                                 format='NETCDF4_CLASSIC',
-                                 unlimited_dims=['time'])
+                    # try saving and setting the `time` dimension as
+                    # unlimited
+                    try:
+                        ds.to_netcdf(os.path.join(save_path, file_name),
+                                format='NETCDF4_CLASSIC',
+                                unlimited_dims=['time'])
+                    except RuntimeError:
+                        # if a RuntimeError occured during this step,
+                        # it is probably related to the setting unlimited
+                        # size for the time dimension, so ignoring it.
+                        ds.to_netcdf(os.path.join(save_path, file_name),
+                                format='NETCDF4_CLASSIC')
                 else:
                     warnings.warn(
                         "Forcing object is not saved, but returned as "
