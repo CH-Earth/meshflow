@@ -401,9 +401,30 @@ class MESHWorkflow(object):
             - Future versions may implement lazy loading for efficiency.
             - Landcover loading is currently limited to MAF-compliant CSV files.
         """
+        # reading objects
         self.riv = gpd.read_file(self._riv_path)
         self.cat = gpd.read_file(self._cat_path)
         self.landcover = self._read_landcover()
+
+        # check if at least one outlet segment exists in `.riv` object
+        if not np.any(self.riv[self.ds_main_id] == self.outlet_value):
+            raise ValueError("System requires at least one outlet river"
+                    "segments.")
+
+        # limit the `river_class` values to 5 only
+        river_class_name = self.ddb_vars['river_class']
+        # if `river_class` numbers are more than 5, set anything more than the
+        # fifth largest number, to the fifth largest number seen in 
+        # the IAK variable
+        if river_class_name in self.riv.columns:
+            # set the minimum river class value, if provided
+            if 'river_class' in self.ddb_min_values:
+                self.riv[river_class_name] = self.riv[river_class_name].clip(lower=self.ddb_min_values['river_class'])
+            # set the maximum river class types to 5 distinct values only
+            u = np.unique(self.riv[river_class_name].to_numpy())
+            if u.size > 5:
+                fifth_largest_distinct = u[4]
+                self.riv[river_class_name] =  self.riv[river_class_name].clip(upper=fifth_largest_distinct)
 
     def _read_landcover(self):
         """
