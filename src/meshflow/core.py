@@ -9,7 +9,6 @@ modelling framework to North American domains.
 """
 
 # third-party libraries
-from ast import Tuple
 import dateutil.parser
 import pandas as pd
 import numpy as np
@@ -18,6 +17,8 @@ import xarray as xr
 import pint
 import dateutil
 import timezonefinder
+
+from shapely.geometry import Point
 
 # built-in libraries
 from typing import (
@@ -284,7 +285,7 @@ class MESHWorkflow(object):
             data.
         ds_main_id : str, optional
             Name of the downstream segment identifier field in river data.
-        observations : Dict[str, Dict], optional
+        observations : Sequence[Dict[str, Dict | str | Any]], optional
             Optional dictionary containing observation data for model
             calibration and validation. See the `Notes` section for more
             details.
@@ -816,7 +817,7 @@ class MESHWorkflow(object):
         self.run_options_text = self.init_options(return_text=True)
 
         # If self.observations is not None, process observations
-        if self.observations is not None:
+        if self._obs is not None:
             self.init_observations()
 
         return
@@ -1623,7 +1624,8 @@ class MESHWorkflow(object):
         """
         Initialize the observations object for the MESH workflow.
         The `self._obs` value has to follow the below structure:
-        >>> {
+        >>> [
+        ...     {
         ...     'type': 'streamflow',
         ...     'location': {
         ...         'latitude': 51.172222,
@@ -1631,10 +1633,13 @@ class MESHWorkflow(object):
         ...     },
         ...     'timeseries': [
         ...         ('2020-01-01', 10.5),
-        ...         ('2020-01-02', 12.3), 
-        ...         ...],
+        ...         ('2020-01-02', 12.3),
+        ...     ],
         ...     'units': 'm3/s',
-        ... }
+        ...     'freq': '1D',
+        ...     },
+        ...     ...
+        ... ]
 
         In the example above, the `type` key indicates the type of observation.
         Acceptable type keywords are based on the output variable names of MESH.
@@ -1646,7 +1651,12 @@ class MESHWorkflow(object):
 
         The timeseries key contains an array-like object containing the timestamp
         and corresponding observation value. The observations can be provided in 
-        any time interval.
+        any time interval, as long as the `freq` key indicates the frequency of
+        the observations.
+
+        Acceptable frequency strings are based on pandas offset aliases. A list
+        of frequency strings can be found in the following:
+         - https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timeseries-offset-aliases
 
         The units key indicates the units of the observation values, which should
         be compatible with the MESH output variable units.
@@ -1676,6 +1686,59 @@ class MESHWorkflow(object):
 
         # instead of manipulating self._obs directly, we work on the copy of it
         obs_copy = copy.deepcopy(self._obs)
+
+        # see which sub-basin `main_id` value corresponds to the observation location
+        for idx, obs in enumerate(obs_copy):
+            # create a GeoDataFrame for the observation point
+            obs_point = gpd.GeoDataFrame(
+                geometry=[Point(
+                    obs['location']['longitude'],
+                    obs['location']['latitude']
+                )],
+                crs='EPSG:4326'
+            )
+
+            # reproject the observation point to the same CRS as the sub-basins
+            obs_point = obs_point.to_crs(self.cat.crs)
+
+            # perform spatial join to find the sub-basin containing the point
+            joined = gpd.sjoin(
+                obs_point,
+                self.cat[[self.main_id, 'geometry']],
+                how='left',
+                predicate='within'
+            )
+
+            # if a match is found, extract the sub-basin `main_id` value
+            if joined.empty or pd.isna(joined[self.main_id].values[0]):
+                raise ValueError(
+                    f"Observation point at index {idx} is not within any sub-basin."
+                )
+
+            # the subbasin value is hard-coded as it's MESH's default
+            # naming convention in vector-based setups
+            subbasin_value = joined[self.main_id].values[0]
+            obs_copy[idx]['subbasin'] = subbasin_value
+
+            # extract the Rank value for the sub-basin
+            rank_value = self.rank[np.argwhere(self.main_seg == subbasin_value)][0][0]
+            obs_copy[idx]['rank'] = int(rank_value)
+
+        # build the xarray.Dataset object from the obs_copy list
+        self.observations = utility.observations._build_dataset(
+            dicts=obs_copy,
+            ranks=self.rank,
+            subbasins=self.main_seg,
+        )
+        # self.observations = obs_copy
+
+        # assign progress tracking variable, althought not necessary
+        self._progress.append('init_observations')
+
+        # if return_ds is True, return the observations dataset
+        if return_ds:
+            return self.observations
+
         return
 
     def save(
@@ -1782,6 +1845,11 @@ class MESHWorkflow(object):
         run_options_file = 'MESH_input_run_options.ini'
         with open(os.path.join(output_dir, run_options_file), 'w') as f:
             f.write(self.options_text)
+
+        # save the observations dataset if it exists
+        if hasattr(self, 'observations'):
+            obs_file = 'MESH_observations.nc'
+            self.observations.to_netcdf(os.path.join(output_dir, obs_file))
 
         return
 

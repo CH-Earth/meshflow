@@ -37,6 +37,7 @@ dependencies = [
   "pint-xarray>=0.2.1",
   "xarray>=0.11",
   "geopandas>=0.13.2",
+  "shapely>=2.1.1",
   "pandas>=1.4.0",
   "numpy>=1.22.2",
   "typing_extensions>=4.7.1",
