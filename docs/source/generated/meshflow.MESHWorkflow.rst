@@ -23,6 +23,7 @@
       ~MESHWorkflow.init_ddb
       ~MESHWorkflow.init_forcing
       ~MESHWorkflow.init_hydrology
+      ~MESHWorkflow.init_observations
       ~MESHWorkflow.init_options
       ~MESHWorkflow.maybe_int
       ~MESHWorkflow.run
