@@ -35,7 +35,7 @@
             "etc": {
                 "TIMESTEPFLAG": "",
                 "INPUTPARAMSFORMFLAG": "txt",
-                "SHDFILEFLAG": "nc_subbasin",
+                "SHDFILEFLAG": "nc_subbasin pad_outlets",
                 "FROZENSOILINFILFLAG": 0,
                 "PBSMFLAG": "off",
                 "INTERPOLATIONFLAG": 0,
