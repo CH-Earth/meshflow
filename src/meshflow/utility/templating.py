@@ -26,6 +26,9 @@ from typing import (
 
 from importlib import resources
 
+# import internal modules
+from .utils import is_int
+
 # custom type hints
 try:
     from os import PathLike
@@ -273,6 +276,12 @@ def render_hydrology_template(
 
         # update the dict
         hydrology_params[gru].update(defaults)
+
+    # if the keys are simply integers, sorting will be based on integer values
+    if all(is_int(key) for key in hydrology_params.keys()):
+        # make the keys integers for sorting
+        hydrology_params = {int(gru): value for gru, value in hydrology_params.items()}
+    # else, leave as is (string sorting -> bad idea)
 
     # preparing the object in the way the Jinja2 template expects
     # the routing parameters are a list of sorted dictionaries
