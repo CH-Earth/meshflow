@@ -10,6 +10,9 @@
     {# define number of decimals for float values #}
     {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
 {% endmacro %}
+{% macro format_scientific(value, decimals) -%}
+    {{ "%.decimalsE" | replace("decimals", decimals) | format(value) }}
+{%- endmacro %}
 {% macro calculate_padding_end(column, val, cursor) %}
     {# define the padding given the column the `val' s length #}
     {{- " " * (column - (val | string | length) - cursor - 1) -}}
@@ -46,10 +49,10 @@
             "R2N": format_float(routing_column.get("r2n"), 3),
             "R1N": format_float(routing_column.get("r1n"), 3),
             "PWR": format_float(routing_column.get("pwr"), 3),
-            "FLZ": format_float(routing_column.get("flz"), 3)
+            "FLZ": format_scientific(routing_column.get("flz"), 1)
             }
         -%}
-        {# define simple padding #}
+        {# define simple padding - FLZ is not pretty printed though #}
         {%- set padding = " " * 4 -%}
         {# write values #}
         {%- set param_val = param_dict.get(param) -%}
