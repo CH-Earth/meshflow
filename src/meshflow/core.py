@@ -1041,7 +1041,7 @@ class MESHWorkflow(object):
                     units=forcing_units_renamed,
                     to_units=forcing_to_units_renamed,
                     unit_registry=_ureg,
-                    aggregate=self.settings['core']['forcing_files'],
+                    aggregate=False,
                     local_attrs=self.forcing_local_attrs,
                     global_attrs=self.forcing_global_attrs,
                 )
@@ -1089,7 +1089,7 @@ class MESHWorkflow(object):
                     units=forcing_units_renamed,
                     to_units=forcing_to_units_renamed,
                     unit_registry=_ureg,
-                    aggregate=self.settings['core']['forcing_files'],
+                    aggregate=True,
                     local_attrs=self.forcing_local_attrs,
                     global_attrs=self.forcing_global_attrs,
                 )
