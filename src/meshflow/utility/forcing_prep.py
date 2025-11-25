@@ -30,7 +30,7 @@ def prepare_mesh_forcing(
     aggregate: bool = False,
     local_attrs: Optional[Dict[str, str]] = None,
     global_attrs: Optional[Dict[str, str]] = None,
-) -> None:
+) -> xr.Dataset:
     """
     Prepare a MESH forcing file by merging, converting, and annotating data.
 
