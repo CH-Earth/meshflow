@@ -9,7 +9,6 @@ modelling framework to North American domains.
 """
 
 # third-party libraries
-from ast import Tuple
 import dateutil.parser
 import pandas as pd
 import numpy as np
@@ -26,7 +25,10 @@ from typing import (
     Union,
     Optional,
     Tuple,
+    List,
 )
+
+from importlib import resources
 
 import re
 import json
@@ -35,7 +37,6 @@ import glob
 import os
 import shutil
 import warnings
-import datetime
 
 # local imports
 from ._default_attrs import (
@@ -51,7 +52,7 @@ from ._default_dicts import (
     mesh_drainage_database_minimums_default,
     mesh_drainage_database_names_default,
 )
-from meshflow import utility
+from . import utility
 
 # custom type hints
 try:
@@ -60,6 +61,13 @@ except ImportError:  # <Python3.8
     from typing import Union
     PathLike = Union[str, bytes]
 
+# constants
+with open(
+    resources.files("meshflow.templates").joinpath("default_process_parameters.json"),
+    'r'
+) as f:
+    DEFAULT_PROCESS_PARAMETERS = json.load(f)
+DEFAULT_RUN_OPTIONS = resources.files("meshflow.templates").joinpath("default_input_run_options.json")
 
 class MESHWorkflow(object):
     """
@@ -724,7 +732,7 @@ class MESHWorkflow(object):
 
     def run(
         self,
-        save_path: Optional[PathLike] = None,
+        save_path: Optional[PathLike] = None, # type: ignore
     ) -> None:
         """
         Run the workflow and prepare a MESH model setup.
@@ -779,13 +787,27 @@ class MESHWorkflow(object):
             self.init_forcing(save=False)  # creates self.forcing automatically
 
         # Generate land-cover dependent setting files for MESH
-        self.class_text = self.init_class(return_text=True)
+        self.class_dict = self.init_class(return_dict=True)
 
         # Generate hydrology setting files for MESH
-        self.hydrology_text = self.init_hydrology(return_text=True)
+        self.hydrology_dict = self.init_hydrology(return_dict=True)
 
         # Generate run options for MESH
-        self.run_options_text = self.init_options(return_text=True)
+        self.run_options_dict = self.init_options(return_dict=True)
+
+        # Check for included processes to customize parameters
+        included_processes = self.check_process_parameters(
+            options_dict=self.options_dict,
+            return_processes=True)
+
+        # Render configuration texts for the MESH instance
+        self.class_text, self.hydrology_text, self.run_options_text = self.render_configs(
+            class_dicts=self.class_dict,
+            hydrology_dicts=self.hydrology_dict,
+            options_dict=self.run_options_dict,
+            process_details=included_processes,
+            return_texts=True,
+        )
 
         return
 
@@ -1114,22 +1136,22 @@ class MESHWorkflow(object):
 
     def init_class(
         self,
-        return_text: bool = False,
-    ) -> Optional[str]:
+        return_dict: bool = False,
+    ) -> dict | None:
         """
         Generate the CLASS configuration text for the MESH model.
 
         Parameters
         ----------
-        return_text : bool, optional
-            If True, returns the generated CLASS configuration text as a string.
-            If False (default), assigns the text to `self.class_text` and returns
+        return_dict : bool, optional
+            If True, returns the generated CLASS configuration dictionary.
+            If False (default), assigns the dictionary to `self.class_dict` and returns
             None.
 
         Returns
         -------
-        str or None
-            The CLASS configuration text if `return_text` is True, otherwise None.
+        dict or None
+            The CLASS configuration dictionary if `return_dict` is True, otherwise None.
 
         Raises
         ------
@@ -1246,35 +1268,34 @@ class MESHWorkflow(object):
                 else:
                     warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
 
-        # generate the CLASS text file
-        self.class_text = utility.render_class_template(
-            class_info=class_info,
-            class_case=class_case,
-            class_grus=class_gru,
-        )
+        # if return is requested, return the class dictionary
+        if return_dict:
+            return {
+                'class_case': class_case,
+                'class_info': class_info,
+                'class_grus': class_gru,
+            }
 
-        # if return is requested, return the class text
-        if return_text:
-            return self.class_text
+        return
 
     def init_hydrology(
         self,
-        return_text: bool = False,
-    ) -> Optional[str]:
+        return_dict: bool = False,
+    ) -> dict | None:
         """
         Generate the hydrology configuration text for the MESH model.
 
         Parameters
         ----------
-        return_text : bool, optional
-            If True, returns the generated hydrology configuration text as a
-            string. If False (default), assigns the text to `self.hydrology_text`
+        return_dict : bool, optional
+            If True, returns the generated hydrology configuration dictionary.
+            If False (default), assigns the dictionary to `self.hydrology_dict`
             and returns None.
 
         Returns
         -------
-        str or None
-            The hydrology configuration text if `return_text` is True,
+        dict or None
+            The hydrology configuration dictionary if `return_dict` is True,
             otherwise None.
 
         Raises
@@ -1348,35 +1369,36 @@ class MESHWorkflow(object):
                             UserWarning,
                         )
 
-        # build the hydrology text file
-        self.hydrology_text = utility.render_hydrology_template(
-            routing_params=routing_dict,
-            hydrology_params=hydrology_dict,
-        )
-
-        # if return is requested, return the hydrology text
-        if return_text:
-            return self.hydrology_text
+        # if return is requested, return the hydrology dictionary
+        if return_dict:
+            return {
+                'routing': routing_dict,
+                'hydrology': hydrology_dict,
+            }
 
         return
 
     def init_options(
         self,
-        return_text: bool = False,
-    ) -> Optional[str]:
+        default_options: PathLike = DEFAULT_RUN_OPTIONS, # type: ignore
+        return_dict: bool = False,
+    ) -> dict | None:
         """
         Generate the MESH run options configuration text.
 
         Parameters
         ----------
-        return_text : bool, optional
+        default_options : PathLike, optional
+            Path to the default run options JSON file. If not provided,
+            uses the built-in default.
+        return_dict : bool, optional
             If True, returns the generated run options configuration text as a
-            string. If False (default), assigns the text to `self.options_text`
+            dictionary. If False (default), assigns the dictionary to `self.options_dict`
             and returns None.
 
         Returns
         -------
-        str or None
+        dict or None
             The run options configuration text if `return_text` is True,
             otherwise None.
 
@@ -1389,6 +1411,8 @@ class MESHWorkflow(object):
           settings, using the centroid of the catchment area.
         - Calculates time difference between forcing and model time zones.
         - Renders the options text using a template utility.
+        - The user's custom settings in `self.settings['run_options']`
+          will override the automatically generated options.
         """
 
         # build the options dictionary
@@ -1446,7 +1470,7 @@ class MESHWorkflow(object):
             # calculate area's centroid coordinates---basically what is done
             # in the `init_class` method
             warnings.warn(
-                "No `model_time_zone` provided in the settings. "
+                "No `model_time_zone` provided in the settings.core. "
                 "Autodetecting the time zone using `timezonefinder` "
                 "based on the centroid of the catchment area.",
                 UserWarning,
@@ -1525,11 +1549,187 @@ class MESHWorkflow(object):
             },
         }
 
+        # also try to look at the default options and update them
+        # to provide the full picture to the rendering engine
+        with open(default_options, 'r') as file:
+            default_options = json.load(file)
+        default_options['settings'].update(utility.templating.deep_merge(default_options['settings'], options_dict))
+
+        # update the built options with that of user input
+        if 'run_options' in self.settings and len(self.settings['run_options']) > 0:
+            # deep update the options_dict with user inputs
+            # this updates `options_dict` in place
+            self._recursive_update(default_options['settings'], self.settings['run_options'])
+
+        # making the object available to the instance
+        self.options_dict = default_options
+
+        if return_dict:
+            return self.options_dict
+
+        return
+
+    def check_process_parameters(
+        self,
+        options_dict: Dict[str, Any],
+        process_details: Dict[str, Any] = DEFAULT_PROCESS_PARAMETERS,
+        return_processes: bool = False,
+    ) -> Dict[str, List] | None:
+        """
+        Check and process run options parameters for consistency and correctness.
+
+        Parameters
+        ----------
+        options_dict : dict
+            Dictionary containing run options configuration parameters.
+        process_details : dict, optional
+            Dictionary defining process details, including necessary hydrology
+            and routing parameters for each process. Default is `DEFAULT_PROCESS_PARAMETERS`.
+        return_processes : bool, optional
+            If True, returns the extracted process parameters as a dictionary.
+            If False (default), assigns the parameters to instance attributes
+            and returns None.
+
+        Raises
+        ------
+        ValueError
+            If any required keys are missing in the `options_dict`.
+
+        Notes
+        -----
+        - Validates the presence of essential keys in the run options dictionary.
+        - Ensures that the configuration is complete before rendering.
+        """
+        required_keys = ['flags', 'outputs', 'dates']
+        for key in required_keys:
+            if key not in options_dict['settings']:
+                raise ValueError(f"Missing required key '{key}' in options_dict")
+
+        # FIXME: this is an experimental step to check the involved processes
+        #        and include necessary parameters for each process. This will
+        #        be further developed to be a coherent mechanism.
+
+        # present processes to be put into a dictionary and then passed to the
+        # hydrology file; important processes to check are:
+        # flags:
+        #   1. RUNMODE
+        #   2. BASEFLOWFLAG
+        #   3. to be continued...
+
+        # extract process definition values from the options_dict
+        runmode = options_dict['settings']['flags']['etc'].get('RUNMODE').lower()
+        baseflowflag = options_dict['settings']['flags']['etc'].get('BASEFLOWFLAG').lower()
+
+        processes = {
+            'runmode': runmode,
+            'baseflowflag': baseflowflag
+        }
+
+        # extract the relevant `hydrology` and `routing` dictionaries
+        # and combine them to be further passed to the text rendering engines
+        # first define necessary empty sequences
+        self.hydrology_prcess_params = []
+        self.routing_process_params = []
+
+        # now iterate over available processes and extract what parameters
+        # need to be included in the hydrology and routing dictionaries
+        for process_name, process_type in processes.items():
+            if process_name in process_details:
+                # extract the process parameters
+                self.hydrology_prcess_params += process_details[process_name][process_type]['hydrology']
+                self.routing_process_params += process_details[process_name][process_type]['routing']
+
+        # we also need, certain minimal parameters that are necessary
+        # these parameters are in the "_necessary" key of the process_details
+        self.hydrology_prcess_params += process_details['_necessary']['hydrology']
+        self.routing_process_params += process_details['_necessary']['routing']
+
+        # make sure everything in both lists are in lower case
+        self.hydrology_prcess_params = [param.lower() for param in self.hydrology_prcess_params]
+        self.routing_process_params = [param.lower() for param in self.routing_process_params]
+
+        if return_processes:
+            return {
+                'hydrology': self.hydrology_prcess_params,
+                'routing': self.routing_process_params
+            }
+
+        return
+
+    def render_configs(
+        self,
+        class_dicts: Dict[str, Dict[str, Any]],
+        hydrology_dicts: Dict[str, Dict[str, Any]],
+        options_dict: Dict[str, Any],
+        process_details: Optional[Dict[str, List]] = None,
+        return_texts: Optional[bool] = False,
+    ) -> Optional[Tuple[str, str, str]]:
+        """
+        Render configuration texts for CLASS, hydrology, and run options.
+
+        Parameters
+        ----------
+        class_dicts : dict of dict
+            Dictionary containing CLASS configuration parameters
+            that are stored in three distinct dictionaries, including
+            `class_info`, `class_case`, and `class_grus` (key names).
+        hydrology_dicts : dict of dict
+            Dictionary containing hydrology configuration parameters
+            stored in two distinct dictionaries, including 
+            `hydrology_info` and `hydrology_case` (key names).
+        options_dict : dict
+            Dictionary containing run options configuration parameters.
+        process_details : dict, optional
+            Dictionary defining process details, including necessary hydrology
+            and routing parameters for each process. If provided, it will be
+            used to check and extract necessary parameters for hydrology and
+            routing configurations.
+        return_texts : bool, optional
+            If True, return the rendered configuration texts as strings
+            instead of writing to files.
+
+        Returns
+        -------
+        Tuple[str, str, str]
+            A tuple containing the rendered configuration texts for CLASS,
+            hydrology, and run options.
+
+        Notes
+        -----
+        - Utilizes utility functions to render configuration texts based on
+          provided dictionaries created via `init_class`, `init_hydrology`,
+          and `init_options` methods.
+        - Users can directly use this function if the configuration dictionaries
+          are created externally.
+        """
+        # check whether the data dictionaries are provided
+        if not isinstance(class_dicts, dict) or \
+            not isinstance(hydrology_dicts, dict) or \
+                not isinstance(options_dict, dict):
+            raise ValueError("`class_dicts`, `hydrology_dicts`, and `options_dict` "
+                             "must be dictionaries")
+
+        # render CLASS configuration text
+        self.class_text = utility.render_class_template(
+            class_info=class_dicts.get('class_info'),
+            class_case=class_dicts.get('class_case'),
+            class_grus=class_dicts.get('class_grus')
+        )
+
+        # render run options configuration text
         self.options_text = utility.render_run_options_template(options_dict)
 
-        if return_text:
-            return self.options_text
-        
+        # render hydrology configuration text
+        # check if the process_details is provided
+        self.hydrology_text = utility.render_hydrology_template(
+            routing_params=hydrology_dicts.get('routing'),
+            hydrology_params=hydrology_dicts.get('hydrology'),
+            process_details=process_details
+        )
+
+        if return_texts:
+            return self.class_text, self.hydrology_text, self.options_text
+
         return
 
     def save(self, output_dir):
@@ -1782,6 +1982,54 @@ class MESHWorkflow(object):
             return int(x)
         return x
 
-    def _progress_bar():
-        """A placeholder for a progress bar function in future versions."""
-        return
+    def _recursive_update(
+        self,
+        base_dict: dict,
+        update_with: dict
+    ) -> dict:
+        """
+        Recursively update a nested dictionary with another dictionary.
+
+        Parameters
+        ----------
+        base_dict : dict
+            The dictionary to be updated in-place.
+        update_with : dict
+            The dictionary whose keys and values are used to update ``base_dict``.
+            Nested dictionaries trigger recursive updates; non-dictionary values
+            overwrite existing entries.
+
+        Returns
+        -------
+        dict
+            The updated ``base_dict`` dictionary after applying all changes from
+            ``update_with``.
+
+        Examples
+        --------
+        >>> base = {"a": 1, "b": {"c": 2, "d": 3}}
+        >>> patch = {"b": {"c": 20}, "e": 5}
+        >>> _recursive_update(base, patch)
+        {'a': 1, 'b': {'c': 20, 'd': 3}, 'e': 5}
+        """
+        for key, value in update_with.items():
+            # Check if the key exists in the base dictionary and if both
+            # the base value and the new value are dictionaries.
+            if (key in base_dict and 
+                isinstance(base_dict[key], dict) and 
+                isinstance(value, dict)):
+
+                # If both are dicts, recurse deeper
+                self._recursive_update(base_dict[key], value)
+            else:
+                # Otherwise, overwrite the value (or add it if it didn't exist)
+                if key in base_dict:
+                    base_dict[key] = value
+                else:
+                    warnings.warn(
+                        f"Key '{key}' not found in the target dictionary; adding it.",
+                        UserWarning,
+                    )
+                    base_dict[key] = value
+
+        return base_dict
