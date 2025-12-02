@@ -26,8 +26,6 @@ from typing import (
 
 from importlib import resources
 
-from requests import options
-
 # import internal modules
 from .utils import is_int
 
