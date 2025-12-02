@@ -1470,7 +1470,7 @@ class MESHWorkflow(object):
             # calculate area's centroid coordinates---basically what is done
             # in the `init_class` method
             warnings.warn(
-                "No `model_time_zone` provided in the settings.core. "
+                "No `model_time_zone` provided in settings['core']. "
                 "Autodetecting the time zone using `timezonefinder` "
                 "based on the centroid of the catchment area.",
                 UserWarning,
@@ -1552,17 +1552,17 @@ class MESHWorkflow(object):
         # also try to look at the default options and update them
         # to provide the full picture to the rendering engine
         with open(default_options, 'r') as file:
-            default_options = json.load(file)
-        default_options['settings'].update(utility.templating.deep_merge(default_options['settings'], options_dict))
+            default_options_data = json.load(file)
+        default_options_data['settings'].update(utility.templating.deep_merge(default_options_data['settings'], options_dict))
 
         # update the built options with that of user input
         if 'run_options' in self.settings and len(self.settings['run_options']) > 0:
             # deep update the options_dict with user inputs
             # this updates `options_dict` in place
-            self._recursive_update(default_options['settings'], self.settings['run_options'])
+            self._recursive_update(default_options_data['settings'], self.settings['run_options'])
 
         # making the object available to the instance
-        self.options_dict = default_options
+        self.options_dict = default_options_data
 
         if return_dict:
             return self.options_dict
@@ -1617,8 +1617,8 @@ class MESHWorkflow(object):
         #   3. to be continued...
 
         # extract process definition values from the options_dict
-        runmode = options_dict['settings']['flags']['etc'].get('RUNMODE').lower()
-        baseflowflag = options_dict['settings']['flags']['etc'].get('BASEFLOWFLAG').lower()
+        runmode = options_dict['settings']['flags']['etc'].get('RUNMODE', '').lower()
+        baseflowflag = options_dict['settings']['flags']['etc'].get('BASEFLOWFLAG', '').lower()
 
         processes = {
             'runmode': runmode,
@@ -1628,7 +1628,7 @@ class MESHWorkflow(object):
         # extract the relevant `hydrology` and `routing` dictionaries
         # and combine them to be further passed to the text rendering engines
         # first define necessary empty sequences
-        self.hydrology_prcess_params = []
+        self.hydrology_process_params = []
         self.routing_process_params = []
 
         # now iterate over available processes and extract what parameters
@@ -1636,21 +1636,21 @@ class MESHWorkflow(object):
         for process_name, process_type in processes.items():
             if process_name in process_details:
                 # extract the process parameters
-                self.hydrology_prcess_params += process_details[process_name][process_type]['hydrology']
+                self.hydrology_process_params += process_details[process_name][process_type]['hydrology']
                 self.routing_process_params += process_details[process_name][process_type]['routing']
 
         # we also need, certain minimal parameters that are necessary
         # these parameters are in the "_necessary" key of the process_details
-        self.hydrology_prcess_params += process_details['_necessary']['hydrology']
+        self.hydrology_process_params += process_details['_necessary']['hydrology']
         self.routing_process_params += process_details['_necessary']['routing']
 
         # make sure everything in both lists are in lower case
-        self.hydrology_prcess_params = [param.lower() for param in self.hydrology_prcess_params]
+        self.hydrology_process_params = [param.lower() for param in self.hydrology_process_params]
         self.routing_process_params = [param.lower() for param in self.routing_process_params]
 
         if return_processes:
             return {
-                'hydrology': self.hydrology_prcess_params,
+                'hydrology': self.hydrology_process_params,
                 'routing': self.routing_process_params
             }
 
