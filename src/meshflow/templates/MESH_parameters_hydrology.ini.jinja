@@ -42,7 +42,7 @@
 {{ "    0                                                       # Number of option flags" }}
 {{ "##### Channel routing parameters per river class #####" }}
 {{ "-------#" }}
-{{ "4                                                           # Number of channel routing parameters" }}
+{{ "%8s" | format(routing_process_params | length | string | replace(" ", "")) + "                                                    # Number of channel routing parameters" }}
 {# `routing_dict' is really a list of dicts, so it is ordered #}
 {# list the values for `r2n', `r1n', `pwr', and `flz' #}
 {%- set index = namespace(routing=0) -%}
@@ -101,7 +101,7 @@
 {{ "       0                                                    # Number of GRU independent hydrologic parameters" }}
 {{ "##### GRU class dependent hydrologic parameters #####       # 18comment line 16                                                           | *" }}
 {{ "-------#                                                    # 19comment line 17                                                           | *" }}
-{{ "       4                                                    # 21Number of GRU dependent hydrologic parameters                             | I8" }}
+{{ "%8s" | format(hydrology_process_params | length | string | replace(" ", "")) + "                                                    # 21Number of GRU dependent hydrologic parameters                             | I8" }}
 {# `gru_dict' is really a list of dicts #}
 {# keys are GRU types, and values are a dictionary where the GRU
    parameters are defined, with keys the GRU parameters, and values
