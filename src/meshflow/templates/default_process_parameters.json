@@ -1,0 +1,41 @@
+{
+    "runmode":
+    {
+        "runrte":
+        {
+            "hydrology": [],
+            "routing": ["r2n", "r1n"],
+            "optional": ["MNDR", "WIDEP", "AA2", "AA3", "AA4"]
+        },
+
+        "noroute":
+        {
+            "hydrology": [],
+            "routing": [],
+            "optional": []
+        },
+
+        "runsvs":
+        {
+            "hydrology": [],
+            "routing": [],
+            "optional": []
+        }
+    },
+
+    "baseflowflag":
+    {
+        "wf_lzs":
+        {
+            "hydrology": [],
+            "routing": ["flz", "pwr"],
+            "optional": ["WrchrgIni"]
+        }
+    },
+
+    "_necessary":
+    {
+        "hydrology": ["ZSNL", "ZPLS", "ZPLG"],
+        "routing": []
+    }
+}

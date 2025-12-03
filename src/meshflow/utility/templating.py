@@ -79,7 +79,6 @@ def deep_merge(
             d1[key] = value  # Overwrite or add new key-value pair
     return d1
 
-
 def render_class_template(
     class_info: Dict[str, Any],
     class_case: Dict[str, Any],
@@ -216,12 +215,13 @@ def render_class_template(
 
     return content if content.endswith('\n') else content + '\n'
 
-
 def render_hydrology_template(
     routing_params: Dict[str, Any] = {},
     hydrology_params: Dict[str, Any] = {},
     default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS, # type: ignore
     template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY, # type: ignore
+    *args,
+    **kwargs,
 ) -> str:
     """
     Render a hydrology parameters INI template using Jinja2.
@@ -291,18 +291,22 @@ def render_hydrology_template(
     # hydrology template file
     template = environment.get_template(template_hydrology_path)
 
+    # if process_details is provided in kwargs and is not None
+    additional_kwargs: dict[str, list[str]] = {}
+    if 'process_details' in kwargs and kwargs.get('process_details') is not None:
+        additional_kwargs = kwargs.get('process_details')
+
     # create content
     content = template.render(
         routing_dict=routing_params,
         gru_dict=hydrology_params,
+        **additional_kwargs,
     )
 
     return content if content.endswith('\n') else content + '\n'
 
-
 def render_run_options_template(
     run_options_dict: Dict[str, Any],
-    default_run_options_path: PathLike = DEFAULT_RUN_OPTIONS, # type: ignore
     template_run_options_path: PathLike = TEMPLATE_RUN_OPTIONS, # type: ignore
 ) -> str:
     """
@@ -312,8 +316,6 @@ def render_run_options_template(
     ----------
     run_options_dict : dict
         Dictionary containing run options to be used in the template.
-    default_run_options_path : PathLike, optional
-        Path to the default run options JSON file.
     template_run_options_path : PathLike, optional
         Path to the Jinja2 template for run options.
 
@@ -329,17 +331,14 @@ def render_run_options_template(
     Exception
         If a Jinja2 template error occurs.
     """
-    # load the default values for each GRU
-    with open(default_run_options_path, 'r') as file:
-        options = json.load(file)
-
-    # deep update the dictionary
-    options['settings'].update(deep_merge(options['settings'], run_options_dict))
-
     # options template file
     template = environment.get_template(template_run_options_path)
 
     # create content
-    content = template.render(options_dict = options)
+    content = template.render(options_dict = run_options_dict)
 
-    return content if content.endswith('\n') else content + '\n'
+    # return content
+    if content.endswith('\n'):
+        return content
+    else:
+        return content + '\n'
