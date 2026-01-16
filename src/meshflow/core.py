@@ -883,6 +883,9 @@ class MESHWorkflow(object):
         for k, v in self.ddb_vars.items():
             if k in mesh_drainage_database_names_default:
                 ddb_vars_renamed[v] = mesh_drainage_database_names_default[k]
+            # if not in the default names, keep the original name
+            else:
+                ddb_vars_renamed[k] = v
         # Assuring default variables are all added
         for k in ('rank', 'next'):
                 v = mesh_drainage_database_names_default[k]
@@ -909,6 +912,8 @@ class MESHWorkflow(object):
             if k in mesh_drainage_database_names_default:
                 new_k = mesh_drainage_database_names_default[k]
                 ddb_min_values_renamed[new_k] = v
+
+        print("include_vars:", ddb_vars_renamed)
 
         # generate mesh drainage database
         self.ddb = utility.prepare_mesh_ddb(
