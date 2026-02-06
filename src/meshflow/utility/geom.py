@@ -17,7 +17,6 @@ from pyproj import CRS
 # build-in libraries
 import warnings
 
-
 def extract_centroid(
     gdf: gpd.GeoDataFrame,
     obj_id: str,
@@ -78,7 +77,6 @@ def extract_centroid(
 
     return coords_df
 
-
 def prepare_mesh_coords(
     coords: pd.DataFrame,
     cat_dim: str,
@@ -118,7 +116,6 @@ def prepare_mesh_coords(
     coords = coords.copy().set_index(cat_dim).to_xarray()
     coords_ds = coords.rename({cat_dim: hru_dim})
     return coords_ds
-
 
 def _calculate_polygon_areas(
     gdf: gpd.GeoDataFrame,
