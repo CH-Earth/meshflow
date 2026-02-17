@@ -790,7 +790,7 @@ class MESHWorkflow(object):
             self.init_forcing(save=False)  # creates self.forcing automatically
 
         # Generate run options for MESH
-        self.run_options_dict = self.init_options(return_dict=True)
+        self.options_dict = self.init_options(return_dict=True)
 
         # Check for included processes to customize parameters
         included_processes = self.check_process_parameters(
@@ -810,7 +810,7 @@ class MESHWorkflow(object):
         self.class_text, self.hydrology_text, self.run_options_text, self.parameters_ds = self.render_configs(
             class_dicts=self.class_dict, # type: ignore
             hydrology_dicts=self.hydrology_dict, # type: ignore
-            options_dict=self.run_options_dict, # type: ignore
+            options_dict=self.options_dict, # type: ignore
             process_details=included_processes,
             return_texts=True,
             return_ds=True
@@ -1611,7 +1611,7 @@ class MESHWorkflow(object):
                     "BASINTEMPERATUREFLAG": f'name_var={self.forcing_vars.get("air_temperature")}',
                     "BASINFORCINGFLAG": {
                         "start_date": forcing_start_date,
-                        "hf": 60, # FIXME: hardcoded value, need to be changed
+                        "hf": 60, # FIXME: hardcoded value, needs to be changed
                         "time_shift": time_diff,
                         "fname": forcing_name,
                     },
@@ -1619,7 +1619,7 @@ class MESHWorkflow(object):
                 },
                 "etc": {
                     "PBSMFLAG": "off",
-                    "TIMESTEPFLAG": 60, # FIXME: hardcoded value, need to be changed
+                    "TIMESTEPFLAG": 60, # FIXME: hardcoded value, needs to be changed
                 },
             },
             "outputs": {
@@ -1738,6 +1738,12 @@ class MESHWorkflow(object):
         # FIXME: this need to be generalized and systematic
         if set(self.routing_process_params) == {'flz', 'pwr'}:
             self.print_parameters_nc = True
+            # if this is the case, make sure the NetCDF format is included
+            # in the `INPUTPARAMSFORMFLAG` option of the options_dict
+            input_param_format = self.options_dict['settings']['flags']['etc']['INPUTPARAMSFORMFLAG']
+            if 'NetCDF' not in input_param_format:
+                input_param_format += ' NetCDF' # inplace update of the dictionary value
+                self.options_dict['settings']['flags']['etc']['INPUTPARAMSFORMFLAG'] = input_param_format
 
         if return_processes:
             return {
@@ -1817,14 +1823,6 @@ class MESHWorkflow(object):
             class_grus=class_dicts.get('class_grus') # type: ignore
         )
 
-        # render run options configuration text
-        # Note: inplace updates on `options_dict` will be reflected after
-        #       assiging defaults values inside the utility.render_run_options_template function
-        # FIXME: The Note above is not an elegant way of doing things, and
-        #        lower legibility and maintainability. This will be further
-        #        developed to be more coherent and clear in the future.
-        self.options_text = utility.render_run_options_template(options_dict)
-
         # render hydrology configuration text
         # check if the process_details is provided
         # Note: inplace updates on `hydrology_dicts` will be reflected after
@@ -1840,6 +1838,14 @@ class MESHWorkflow(object):
             hru_dim=self.hru_dim,
             gru_dim=self.gru_dim,
         )
+
+        # render run options configuration text
+        # Note: inplace updates on `options_dict` will be reflected after
+        #       assiging defaults values inside the utility.render_run_options_template function
+        # FIXME: The Note above is not an elegant way of doing things, and
+        #        lower legibility and maintainability. This will be further
+        #        developed to be more coherent and clear in the future.
+        self.options_text = utility.render_run_options_template(options_dict)
 
         # if `flz` and `pwr` are the only ones in the `process_details.routing` list,
         # that means the `MESH_parameters.nc` needs to be printed as well
