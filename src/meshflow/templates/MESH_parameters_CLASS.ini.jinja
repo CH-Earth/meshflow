@@ -303,11 +303,7 @@
             {%- if element == 'mid' -%}
                 {%- set val = line_dict.get(element) -%}
                 {%- set padding = " " * 3 -%}
-		{%- if class == 'water' -%}
-                    {{- padding }}{{ "0   " }}{{- val -}}
-		{%- else -%}
-                    {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
-		{%- endif -%}
+                {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
 		{%- set mid.counter = mid.counter + 1 -%}
                 {%- set cursor.position_gru = cursor.position_gru + 4 + (padding | length) + (val | string | length) -%}
             {%- else -%}
