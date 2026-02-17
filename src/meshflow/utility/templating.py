@@ -13,21 +13,27 @@ from jinja2 import (
     PackageLoader,
 )
 
+import xarray as xr
+
 # built-in libraries
-import os
 import json
 import copy
+import warnings
 
 from typing import (
     Dict,
     Any,
-    Sequence
+    Sequence,
+    Tuple,
+    Optional,
+    Union
 )
 
 from importlib import resources
 
 # import internal modules
 from .utils import is_int
+from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
 
 # custom type hints
 try:
@@ -220,9 +226,13 @@ def render_hydrology_template(
     hydrology_params: Dict[str, Any] = {},
     default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS, # type: ignore
     template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY, # type: ignore
+    parameters_ds: Optional[xr.Dataset] = None,
+    hru_dim: Optional[str] = 'subbasin',
+    gru_dim: Optional[str] = 'NGRU',
+    return_ds: bool = False,
     *args,
     **kwargs,
-) -> str:
+) -> str | Tuple[str, xr.Dataset]:
     """
     Render a hydrology parameters INI template using Jinja2.
 
@@ -236,11 +246,28 @@ def render_hydrology_template(
         Path to the default hydrology parameters JSON file.
     template_hydrology_path : PathLike, optional
         Path to the Jinja2 template for hydrology parameters.
+    parameters_ds : xarray.Dataset, optional
+        An optional xarray.Dataset containing hydrology-specific parameters
+        that may be needed for rendering the template. If not provided,
+        it will be generated based on the routing parameters if necessary.
+    hru_dim : str, optional
+        Name of the dimension representing HRUs (or subbasins) in
+        the parameters dataset.
+    gru_dim : str, optional
+        Name of the dimension representing GRUs in the parameters dataset.
+    return_ds : bool, optional
+        Whether to return the xarray.Dataset containing hydrology-specific
+        parameters along with the rendered template. If True, the function
+        will return a tuple of (rendered_template, parameters_ds). If False,
+        it will return only the rendered template.
 
     Returns
     -------
     str
         Rendered hydrology template as a string.
+    xr.Dataset, optional
+        If `return_ds` is True, also return the xarray.Dataset containing
+        hydrology-specific parameters.
 
     Raises
     ------
@@ -296,6 +323,77 @@ def render_hydrology_template(
     if 'process_details' in kwargs and kwargs.get('process_details') is not None:
         additional_kwargs = kwargs.get('process_details')
 
+    # if addtional_kwargs is not empty, we need to determine whether
+    # a MESH_parameters.nc file is necessary or not.
+    #   If necessary, we will have to generate an xarray.Dataset and 
+    #   fit the hydrology specific parameters inside; we also need to
+    #   remove these values from the MESH_parameters_hydrology.ini file
+    #   to avoid redundancy and potential conflicts.
+    #   Otherwise, we will just proceed with rendering the template as is.
+    if additional_kwargs:
+        # if only `pwr` and `flz` are provided in additional_kwargs, then
+        # we need to adjust them inside the `routing_params` to assure that
+        # the number of elements matches the number of subbasins, rather than
+        # the number of river classes in the normal hydrology parameters.
+        # this case typically happens when no routing mechanism is turned on
+        # inside MESH.
+        if set(additional_kwargs['routing']) == {'pwr', 'flz'}:
+            # iterate over each routing block in `routing_params`
+            # remove any keys other than `pwr` and `flz`
+            for routing_block in routing_params:
+                keys_to_remove = set(routing_block.keys()) - {'pwr', 'flz'}
+                if keys_to_remove:
+                    for key in keys_to_remove:
+                        routing_block.pop(key, None)
+            # we will need to find the number of subbasins (in the vector
+            # case) to determine the dimensions of the xarray.Dataset. 
+            # the computational_units dictionary should have the necessary
+            # information for this. THe specific key would be 'subbasin'.
+            try:
+                num_subbasins: int = int(len(parameters_ds[hru_dim]))
+            except Exception as e:
+                raise Exception("Error determining the number of subbasins"
+                                " from `computational_units`. Use `subbasin`"
+                                " as the key: " + str(e))
+
+            # after extracting the number of basins, one has to make sure
+            # the `pwr` and `flz` parameters in the `routing_params`
+            # are lists of the same length as the number of subbasins.
+            if len(routing_params) != num_subbasins:
+                warnings.warn("Since only `pwr` and `flz` parameters are available in "
+                              "routing scheme (representing baseflow), the number of routing "
+                              "blocks in `routing_params` should match the "
+                              "number of subbasins. Therefore, adjusting the number of"
+                              f" routing blocks to {num_subbasins}.")
+                # repeating the last element of `routing_params` to match
+                # the number of subbasins
+                last_routing_block = routing_params[-1]
+                while len(routing_params) < num_subbasins:
+                    routing_params.append(copy.deepcopy(last_routing_block)) # type: ignore
+
+            # now, we can adjust the xarray.Dataset for MESH_parameters.nc
+            parameters = {
+                var: {
+                    'dims': hru_dim,
+                    'data': [routing_block.get(var) for routing_block in routing_params], # type: ignore
+                    'attrs': LOCAL_ATTRS.get(var, {}),
+                } for var in additional_kwargs['routing']
+            }
+            dims = {hru_dim: num_subbasins}
+            coords = {
+                hru_dim: {
+                    "dims": hru_dim,
+                    "data": parameters_ds[hru_dim].data, # type: ignore
+                },
+            }
+            ds = xr.Dataset.from_dict({
+                'dims': dims,
+                'coords': coords,
+                'data_vars': parameters,
+            })
+            # update the `parameters_ds` variable to be passed to the template
+            parameters_ds.update(ds) # type: xarray.Dataset
+
     # create content
     content = template.render(
         routing_dict=routing_params,
@@ -303,7 +401,13 @@ def render_hydrology_template(
         **additional_kwargs,
     )
 
-    return content if content.endswith('\n') else content + '\n'
+    # assuring the content has a newline at the end for better formatting of the INI file
+    content = content if content.endswith('\n') else content + '\n'
+
+    if return_ds:
+        return content, parameters_ds # type: ignore
+
+    return content
 
 def render_run_options_template(
     run_options_dict: Dict[str, Any],

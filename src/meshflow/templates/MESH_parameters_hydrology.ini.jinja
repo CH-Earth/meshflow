@@ -6,8 +6,8 @@
     routing_process_params: list of strings
         list of routing process parameters to be written in the file
 #}
-{%- set hydrology_process_params = hydrology -%}
-{%- set routing_process_params = routing -%}
+{%- set hydrology_process_params = hydrology | map('lower') | list -%}
+{%- set routing_process_params = routing | map('lower') | list -%}
 {#
     useful macros
     =============
@@ -42,55 +42,63 @@
 {{ "    0                                                       # Number of option flags" }}
 {{ "##### Channel routing parameters per river class #####" }}
 {{ "-------#" }}
+{# if the routing parameters are only `flz` and `pwr`
+   no need to print anything, as in this case, the only way
+   these parameters can be useful is via `MESH_parameters.nc` file.
+#}
+{% if routing_process_params | sort == ['flz', 'pwr'] %}
+{{ "       0                                                    # Number of channel routing parameters" }}
+{% else %}
 {{ "%8s" | format(routing_process_params | length | string | replace(" ", "")) + "                                                    # Number of channel routing parameters" }}
-{# `routing_dict' is really a list of dicts, so it is ordered #}
-{# list the values for `r2n', `r1n', `pwr', and `flz' #}
-{%- set index = namespace(routing=0) -%}
-{%- set cursor = namespace(hydrology=0) -%}
-{# order of values #}
-{%- set param_order = ("R2N", "R1N", "PWR", "FLZ") -%}
-{# iterate over each parameter and column of data provided #}
-{% for param in param_order %}
-    {% if param | lower in routing_process_params %}
-        {# reset the name printing check variable #}
-        {%- set index = namespace(routing=0) -%}
-        {%- for routing_column in routing_dict -%}
-            {# define a list of these parameters #}
-            {%- set param_dict = {
-                "R2N": format_float(routing_column.get("r2n"), 3),
-                "R1N": format_float(routing_column.get("r1n"), 3),
-                "PWR": format_float(routing_column.get("pwr"), 3),
-                "FLZ": format_scientific(routing_column.get("flz"), 1)
-                }
-            -%}
-            {# define simple padding - FLZ is not pretty printed though #}
-            {%- set padding = " " * 4 -%}
-            {# write values #}
-            {%- set param_val = param_dict.get(param) -%}
-            {# print values #}
-            {%- if index.routing == 0 -%}
+    {# `routing_dict' is really a list of dicts, so it is ordered #}
+    {# list the values for `r2n', `r1n', `pwr', and `flz' #}
+    {%- set index = namespace(routing=0) -%}
+    {%- set cursor = namespace(hydrology=0) -%}
+    {# order of values #}
+    {%- set param_order = ("R2N", "R1N", "PWR", "FLZ") -%}
+    {# iterate over each parameter and column of data provided #}
+    {% for param in param_order %}
+        {% if param | lower in routing_process_params %}
+            {# reset the name printing check variable #}
+            {%- set index = namespace(routing=0) -%}
+            {%- for routing_column in routing_dict -%}
+                {# define a list of these parameters #}
+                {%- set param_dict = {
+                    "R2N": format_float(routing_column.get("r2n"), 3),
+                    "R1N": format_float(routing_column.get("r1n"), 3),
+                    "PWR": format_float(routing_column.get("pwr"), 3),
+                    "FLZ": format_scientific(routing_column.get("flz"), 1)
+                    }
+                -%}
+                {# define simple padding - FLZ is not pretty printed though #}
+                {%- set padding = " " * 4 -%}
+                {# write values #}
+                {%- set param_val = param_dict.get(param) -%}
                 {# print values #}
-                {{- param -}}{{- padding }}{{ param_val -}}
-                {# make sure variable name is printed only once #}
-                {%- set index.routing = 1 -%}
-                {# update cursor position #}
-                {%- set cursor.hydrology = (param | length) + (padding | length) + (param_val | string | length) -%}
-            {%- else -%}
-                {# only print padding and param_val if variable name is already
-                written
-                #}
-                {{- padding }}{{ param_val -}}
-                {# update cursor position #}
-                {%- set cursor.hydrology = cursor.hydrology + (padding | length) + (param_val | string | length) -%}
-            {% endif %}
-        {%- endfor -%}
-        {# assing a comment #}
-        {%- set comment = "# comment for line" -%}
-        {# determine comment padding #}
-        {%- set comment_padding = calculate_padding(61, cursor.hydrology) -%}
-        {{- comment_padding }}{{ comment }}
-    {% endif %}
-{% endfor %}
+                {%- if index.routing == 0 -%}
+                    {# print values #}
+                    {{- param -}}{{- padding }}{{ param_val -}}
+                    {# make sure variable name is printed only once #}
+                    {%- set index.routing = 1 -%}
+                    {# update cursor position #}
+                    {%- set cursor.hydrology = (param | length) + (padding | length) + (param_val | string | length) -%}
+                {%- else -%}
+                    {# only print padding and param_val if variable name is already
+                    written
+                    #}
+                    {{- padding }}{{ param_val -}}
+                    {# update cursor position #}
+                    {%- set cursor.hydrology = cursor.hydrology + (padding | length) + (param_val | string | length) -%}
+                {% endif %}
+            {%- endfor -%}
+            {# assing a comment #}
+            {%- set comment = "# comment for line" -%}
+            {# determine comment padding #}
+            {%- set comment_padding = calculate_padding(61, cursor.hydrology) -%}
+            {{- comment_padding }}{{ comment }}
+        {% endif %}
+    {% endfor %}
+{% endif %}
 {# 
     GRU-dependent parameters:
     -------------------------

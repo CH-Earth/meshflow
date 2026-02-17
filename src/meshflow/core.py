@@ -56,18 +56,18 @@ from ._default_dicts import (
 )
 from . import utility
 
+from .utility import parameters_local_attrs as DEFAULT_PARAMTETERS_LOCAL_ATTRS
+
 # custom type hints
 try:
-    from os import PathLike
-except ImportError:  # <Python3.8
-    from typing import Union
-    PathLike = Union[str, bytes]
+    from os import PathLike as _PathLike
+except ImportError:
+    class _PathLike: pass  # type: ignore
+
+PathLike = Union[str, bytes, _PathLike]
 
 # constants
-with open(
-    resources.files("meshflow.templates").joinpath("default_process_parameters.json"),
-    'r'
-) as f:
+with resources.files("meshflow.templates").joinpath("default_process_parameters.json").open('r') as f:
     DEFAULT_PROCESS_PARAMETERS = json.load(f)
 DEFAULT_RUN_OPTIONS = resources.files("meshflow.templates").joinpath("default_input_run_options.json")
 
@@ -231,21 +231,21 @@ class MESHWorkflow(object):
         cat: PathLike, # type: ignore
         landcover: PathLike, # type: ignore
         landcover_classes: Dict[str, str],
-        forcing_files: PathLike = None, # type: ignore
-        forcing_vars: Dict[str, str] = None,
-        forcing_units: Dict[str, str] = None,
-        ddb_vars: Dict[str, str] = None,
-        ddb_units: Dict[str, str] = None,
-        main_id: str = None,
-        ds_main_id: str = None,
+        forcing_files: Optional[PathLike] = None, # type: ignore
+        forcing_vars: Optional[Dict[str, str]] = None,
+        forcing_units: Optional[Dict[str, str]] = None,
+        ddb_vars: Optional[Dict[str, str]] = None,
+        ddb_units: Optional[Dict[str, str]] = None,
+        main_id: Optional[str] = None,
+        ds_main_id: Optional[str] = None,
         forcing_to_units: Dict[str, str] = mesh_forcing_units_default,
         forcing_local_attrs: Dict[str, str] = forcing_local_attrs_default,
         forcing_global_attrs: Dict[str, str] = forcing_global_attrs_default,
-        ddb_local_attrs: Dict[str, str] = ddb_local_attrs_default,
+        ddb_local_attrs: Dict[str, Any] = ddb_local_attrs_default,
         ddb_global_attrs: Dict[str, str] = ddb_global_attrs_default,
         ddb_min_values: Dict[str, float] = mesh_drainage_database_minimums_default,
         ddb_to_units: Dict[str, str] = mesh_drainage_database_units_default,
-        settings: Dict[str, str] = None,
+        settings: Optional[Dict[str, Any]] = None,
         gru_dim: str = 'NGRU',
         hru_dim: str = 'subbasin',
         outlet_value: int = -9999,
@@ -789,12 +789,6 @@ class MESHWorkflow(object):
         else:
             self.init_forcing(save=False)  # creates self.forcing automatically
 
-        # Generate land-cover dependent setting files for MESH
-        self.class_dict = self.init_class(return_dict=True)
-
-        # Generate hydrology setting files for MESH
-        self.hydrology_dict = self.init_hydrology(return_dict=True)
-
         # Generate run options for MESH
         self.run_options_dict = self.init_options(return_dict=True)
 
@@ -803,37 +797,27 @@ class MESHWorkflow(object):
             options_dict=self.options_dict,
             return_processes=True)
 
+        # Generate land-cover dependent setting files for MESH
+        self.class_dict = self.init_class(return_dict=True)
+
+        # Generate hydrology setting files for MESH
+        self.hydrology_dict, self.parameters_ds = self.init_hydrology(
+            return_dict=True,
+            return_ds=True,
+            routing_process_params=included_processes)
+
         # Render configuration texts for the MESH instance
-        self.class_text, self.hydrology_text, self.run_options_text = self.render_configs(
+        self.class_text, self.hydrology_text, self.run_options_text, self.parameters_ds = self.render_configs(
             class_dicts=self.class_dict, # type: ignore
             hydrology_dicts=self.hydrology_dict, # type: ignore
             options_dict=self.run_options_dict, # type: ignore
-            process_details=included_processes, # type: ignore
-            return_texts=True, # type: ignore
+            process_details=included_processes,
+            return_texts=True,
+            return_ds=True
         )
 
         # Generate a parameters file for MESH (MESH_parameters.nc)
         # FIXME: needs to be generalized later on to accept soil parameters as well
-        dims = {
-            self.hru_dim.lower(): self.ordered_dims[self.main_id],
-            self.gru_dim.lower(): list(self.landcover_classes.values()),
-        }
-        parameters = {
-            'pwr': [[0.1 for _ in self.landcover_classes] for _ in  self.ordered_dims[self.main_id]],
-            'flz': [[0.5 for _ in self.landcover_classes] for _ in  self.ordered_dims[self.main_id]],
-        }
-        self.parameters_ds = self.init_parameters(
-            dims=dims,
-            auxiliary_vars={
-                'lat': self.ddb['lat'].to_dict()['data'],
-                'lon': self.ddb['lon'].to_dict()['data'],
-                'subbasin': self.ddb['subbasin'].to_dict()['data'],
-                'time': [0] * len(self.ordered_dims[self.main_id]),
-            },
-            parameters=parameters,
-            parameter_local_attrs=utility.default_parameters_attrs.local_attrs,
-            return_ds=True,
-        )
 
         return
 
@@ -1311,7 +1295,9 @@ class MESHWorkflow(object):
     def init_hydrology(
         self,
         return_dict: bool = False,
-    ) -> dict | None:
+        return_ds: bool = False,
+        routing_process_params: Optional[Dict[str, List]] = None,
+    ) -> Optional[dict]:
         """
         Generate the hydrology configuration text for the MESH model.
 
@@ -1321,6 +1307,8 @@ class MESHWorkflow(object):
             If True, returns the generated hydrology configuration dictionary.
             If False (default), assigns the dictionary to `self.hydrology_dict`
             and returns None.
+        routing_process_params : dict, optional
+            Dictionary containing routing process parameters.
 
         Returns
         -------
@@ -1341,6 +1329,7 @@ class MESHWorkflow(object):
         """
         # build the routing dictionary
         # if order is provided, use it
+        river_classes: Optional[int] = None
         if hasattr(self, 'ddb_vars'):
             if 'river_class' in self.ddb_vars:
                 river_class_name = self.ddb_vars['river_class']
@@ -1354,13 +1343,13 @@ class MESHWorkflow(object):
 
         # if river_classes variable exist
         if 'river_classes' in locals():
-            routing_dict = [dict() for i in range(river_classes)]
+            routing_dict: list[dict] = [dict() for i in range(river_classes)]
         else:
             routing_dict = [{}]
 
         # build the GRU-dependent hydrology part
-        hydrology_dict = {
-            int(k.replace('frac_', '')): {} for k in self.landcover.columns
+        hydrology_dict: Dict[int, Dict] = {
+            int(str(k).replace('frac_', '')): {} for k in self.landcover.columns
         }
 
         # If user provided more information, update these dictionaries
@@ -1375,7 +1364,7 @@ class MESHWorkflow(object):
                     # check if the class is in the routing_dict
                     if iak_class < len(routing_dict):
                         # assure that the params keys are lower-cased
-                        r_dict = {k.lower(): v for k, v in r_dict.items()}
+                        r_dict: dict = {k.lower(): v for k, v in r_dict.items()}
                         # update the routing dictionary with user inputs
                         routing_dict[iak_class].update(r_dict)
                     else:
@@ -1398,15 +1387,82 @@ class MESHWorkflow(object):
                             f"GRU {gru} not found in landcover classes. Skipping...",
                             UserWarning,
                         )
+        # always initiating the parameters_ds object, which may or may
+        # not be used later on, but is necessary for the hydrology configuration
+        parameters_ds = self.init_parameters_ds(return_ds=True) # creates self.parameters_ds attribute
 
         # if return is requested, return the hydrology dictionary
-        if return_dict:
-            return {
+        hydrology_dict = {
                 'routing': routing_dict,
                 'hydrology': hydrology_dict,
             }
 
+        if return_dict and return_ds:
+            return hydrology_dict, parameters_ds
+        elif return_ds:
+            return parameters_ds
+        elif return_dict:
+            return hydrology_dict, parameters_ds
+
         return
+
+    def init_parameters_ds(
+        self,
+        return_ds: bool = False,
+    ) -> Optional[xr.Dataset]:
+        """
+        Generate the parameters dataset for the MESH model.
+
+        Parameters
+        ----------
+        return_ds : bool, optional
+            If True, returns the generated parameters dataset as an xarray.Dataset.
+            If False (default), assigns the dataset to `self.parameters_ds` and returns None.
+
+        Returns
+        -------
+        xarray.Dataset or None
+            The parameters dataset if `return_ds` is True, otherwise None.
+
+        Notes
+        -----
+        - Builds a dataset containing model parameters such as latitudes, longitudes,
+          and coordinate reference system (CRS) information.
+        - The dataset is structured with dimensions corresponding to HRUs and GRUs.
+        - The method can either return the dataset directly or assign it to an instance variable.
+        """
+        # build a MESH_parmaeters.nc equivalent xarray.Dataset object, which
+        # may or may not be used later on
+        # (re-)building some basic values for the Dataset
+        centroids = utility.extract_centroid(
+            self.cat,
+            obj_id=self.main_id,
+            epsg=self.cat.crs.to_epsg())
+        # assigning `self.main_id` as the index of the `centroids` dataframe
+        centroids.set_index(self.main_id, inplace=True)
+        # reordering the index to match the values of `self.reordered_riv[self.main_id]`
+        centroids = centroids.reindex(self.reordered_riv[self.main_id])
+
+        dims = {
+            self.hru_dim: self.reordered_riv[self.main_id],
+            self.gru_dim: range(1, len(self.landcover.columns.str.startswith('frac')) + 2), # MESH needs NGRU + 1
+        }
+        data = {
+            'lat': (self.hru_dim, centroids['lat'], DEFAULT_PARAMTETERS_LOCAL_ATTRS['lat']),
+            'lon': (self.hru_dim, centroids['lon'], DEFAULT_PARAMTETERS_LOCAL_ATTRS['lon']),
+            'crs': ([], '', DEFAULT_PARAMTETERS_LOCAL_ATTRS['crs']),
+        }
+
+        # Create the dataset
+        self.parameters_ds = xr.Dataset(
+            data_vars=data,
+            coords=dims
+            )
+
+        if return_ds:
+            return self.parameters_ds
+        else:
+            return
 
     def init_options(
         self,
@@ -1599,142 +1655,6 @@ class MESHWorkflow(object):
 
         return
 
-    def init_parameters(
-        self,
-        dims: Dict[str, Any],
-        auxiliary_vars: Dict[str, Any],
-        parameters: Dict[str, Any],
-        parameter_local_attrs: Dict[str, Dict[str, Any]] = utility.default_parameters_attrs.local_attrs,
-        return_ds: bool = False,
-    ) -> Optional[xr.Dataset]:
-        """
-        Creating MESH's `MESH_parameters.nc` file given the
-        input parameters that are accepted.
-
-        This is a work in progress, as the MESH_parameters.nc file is not
-        finalized yet, and missing proper documentation.
-
-        Parameters
-        ----------
-        dims : dict
-            A dictionary of dimension names and their corresponding sizes. This
-            should include at least the dimensions for 'lat', 'lon', and 'time',
-            which are essential for the MESH parameters file. The keys are the
-            dimension names as expected by MESH, and the values are the actual
-            dimension (coordinate) values.
-        auxiliary_vars : dict
-            A dictionary of auxiliary variable names and their corresponding
-            values. This should include at least the 'lat', 'lon', and 'time'
-            variables, which are essential for the MESH parameters file.
-            The keys are the variable names as expected by MESH, and the values
-            are the corresponding data arrays or values.
-        parameters : dict
-            A dictionary of parameter names and their corresponding values. The
-            keys are the parameter names as expected by MESH, and the values are
-            the corresponding parameter values to be included in the MESH
-            parameters file.
-
-        Returns
-        -------
-        xarray.Dataset or None
-            If `return_ds` is True, returns an xarray.Dataset containing the
-            MESH parameters. If `return_ds` is False (default), assigns the
-            dataset to `self.parameters_ds` and returns None.
-        """
-
-        # first checking the dtypes of `parameters` and `parameter_local_attrs`
-        # to ensure they are dictionaries
-        if not isinstance(parameters, dict):
-            raise TypeError(f"Expected 'parameters' to be a dictionary, but got"
-                            " {type(parameters).__name__}")
-        if not isinstance(parameter_local_attrs, dict):
-            raise TypeError(f"Expected 'parameter_local_attrs' to be a dictionary,"
-                            " but got {type(parameter_local_attrs).__name__}")
-        if not isinstance(auxiliary_vars, dict):
-            raise TypeError(f"Expected 'auxiliary_vars' to be a dictionary,"
-                            " but got {type(auxiliary_vars).__name__}")
-
-        # Necessary keys are provided in the `auxiliary_vars` dictionary
-        required_auxiliary_keys = ['subbasin', 'lat', 'lon', 'time']
-
-        # If `GRUsClassName` is provided, then `ngru` dimension is necessary
-        if 'GRUsClassName' in parameters:
-            required_auxiliary_keys.append('ngru')
-
-        # If any of `sand`, `clay` or `orgm` is provided, then `nsol`
-        # dimension is necessary
-        if any(key in parameters for key in ['sand', 'clay', 'orgm']):
-            required_auxiliary_keys.append('nsol')
-
-        # now check if all required keys are present in the `auxiliary_vars`
-        missing_keys = [key for key in required_auxiliary_keys if key not in auxiliary_vars]
-        if missing_keys:
-            raise ValueError("Missing required auxiliary variables: "
-                            f"{', '.join(missing_keys)}")
-
-        # checking whether all parameters included in `parameters`
-        # are valid
-        valid_parameters = ['GRUsClassName', 'sand', 'clay', \
-                            'orgm', 'elevation', 'aspect', 'delta', \
-                            'curvature', 'skyviewfactor', 'dd', 'crs', \
-                            'pwr', 'flz']
-        invalid_parameters = [p for p in parameters.keys() if p not in valid_parameters]
-        if invalid_parameters:
-            raise ValueError(f"Invalid parameters found: {', '.join(invalid_parameters)}. "
-                            f"Valid parameters are: {', '.join(valid_parameters)}.")
-
-        # also, soft checking the local attributes of each parameter, if provided.
-        for p in parameters.keys():
-            if p not in parameter_local_attrs:
-                warnings.warn(f"Local attributes for parameter '{p}' are not provided in "
-                            "parameter_local_attrs. Defaulting to empty attributes.")
-
-        # After all the checks, proceeding with the xarray.Dataset creation
-        # first defining the dimensions based on the auxiliary variables
-        # FIXME: In the future, we must allow lat/lon to be dimensions as well,
-        # to support gridded parameters.
-        possible_dimensions = ['subbasin', 'ngru', 'nsol']
-        for dim in dims:
-            if dim not in possible_dimensions:
-                raise ValueError(f"Invalid dimension '{dim}' found in dims. "
-                                f"Valid dimensions are: {', '.join(possible_dimensions)}.")
-
-        # now creating the dataset, define dimensions, and add parameters as data variables
-        # first including `parameters`
-        data = {
-            var: {
-                    "dims": ['subbasin', 'ngru'],
-                    "data": value
-                } for var, value in parameters.items()
-        }
-        # then including auxiliary variables, which are necessary for the dataset to be properly structured
-        data.update({
-            var: {
-                    "dims": 'subbasin',
-                    "data": auxiliary_vars[var]
-                } for var in required_auxiliary_keys
-        })
-
-        self.data = data
-
-        parameters_ds_dict = {
-            "coords": {
-                d: {
-                    "dims": d,
-                    "data": dims[d],
-                } for d in dims
-            },
-            "dims": list(dims.keys()),
-            "data_vars": data
-        }
-
-        self.parameters_ds = xr.Dataset.from_dict(parameters_ds_dict)
-
-        if return_ds:
-            return self.parameters_ds
-        else:
-            return
-
     def check_process_parameters(
         self,
         options_dict: Dict[str, Any],
@@ -1814,6 +1734,11 @@ class MESHWorkflow(object):
         self.hydrology_process_params = [param.lower() for param in self.hydrology_process_params]
         self.routing_process_params = [param.lower() for param in self.routing_process_params]
 
+        # cases where self.parameter_ds must be printed as a NetCDF file
+        # FIXME: this need to be generalized and systematic
+        if set(self.routing_process_params) == {'flz', 'pwr'}:
+            self.print_parameters_nc = True
+
         if return_processes:
             return {
                 'hydrology': self.hydrology_process_params,
@@ -1829,6 +1754,7 @@ class MESHWorkflow(object):
         options_dict: Dict[str, Any],
         process_details: Optional[Dict[str, List]] = None,
         return_texts: Optional[bool] = False,
+        return_ds: Optional[bool] = False,
     ) -> Optional[Tuple[str, str, str]]:
         """
         Render configuration texts for CLASS, hydrology, and run options.
@@ -1853,6 +1779,10 @@ class MESHWorkflow(object):
         return_texts : bool, optional
             If True, return the rendered configuration texts as strings
             instead of writing to files.
+        return_ds : bool, optional
+            If True, return the parameters dataset as an xarray.Dataset object.
+            This is useful for calibration purposes where the dataset may be
+            needed directly.
 
         Returns
         -------
@@ -1876,6 +1806,11 @@ class MESHWorkflow(object):
                              "must be dictionaries")
 
         # render CLASS configuration text
+        # Note: inplace updates on `class_dicts` will be reflected after
+        #       assiging defaults values inside the utility.render_class_template function
+        # FIXME: The Note above is not an elegant way of doing things, and
+        #        lower legibility and maintainability. This will be further
+        #        developed to be more coherent and clear in the future.
         self.class_text = utility.render_class_template(
             class_info=class_dicts.get('class_info'), # type: ignore
             class_case=class_dicts.get('class_case'), # type: ignore
@@ -1883,18 +1818,40 @@ class MESHWorkflow(object):
         )
 
         # render run options configuration text
+        # Note: inplace updates on `options_dict` will be reflected after
+        #       assiging defaults values inside the utility.render_run_options_template function
+        # FIXME: The Note above is not an elegant way of doing things, and
+        #        lower legibility and maintainability. This will be further
+        #        developed to be more coherent and clear in the future.
         self.options_text = utility.render_run_options_template(options_dict)
 
         # render hydrology configuration text
         # check if the process_details is provided
+        # Note: inplace updates on `hydrology_dicts` will be reflected after
+        #       assiging defaults values inside the utility.render_hydrology_template function
+        # FIXME: The Note above is not an elegant way of doing things, and
+        #        lower legibility and maintainability. This will be further
+        #        developed to be more coherent and clear in the future.
         self.hydrology_text = utility.render_hydrology_template(
             routing_params=hydrology_dicts.get('routing'), # type: ignore
             hydrology_params=hydrology_dicts.get('hydrology'), # type: ignore
-            process_details=process_details
+            process_details=process_details,
+            parameters_ds=self.parameters_ds, # this object gets updated inplace inside function
+            hru_dim=self.hru_dim,
+            gru_dim=self.gru_dim,
         )
 
-        if return_texts:
+        # if `flz` and `pwr` are the only ones in the `process_details.routing` list,
+        # that means the `MESH_parameters.nc` needs to be printed as well
+        # this is reflected inside the `utility.render_hydrology_template` function
+        # which will be useful for calibration as well.
+
+        if return_texts and return_ds:
+            return self.class_text, self.hydrology_text, self.options_text, self.parameters_ds
+        elif return_texts:
             return self.class_text, self.hydrology_text, self.options_text
+        elif return_ds:
+            return self.parameters_ds
 
         return
 
@@ -1983,6 +1940,11 @@ class MESHWorkflow(object):
         run_options_file = 'MESH_input_run_options.ini'
         with open(os.path.join(output_dir, run_options_file), 'w') as f:
             f.write(self.options_text)
+
+        # save the parameters dataset if necessary
+        if hasattr(self, 'print_parameters_nc') and self.print_parameters_nc:
+            parameters_file = 'MESH_parameters.nc'
+            self.parameters_ds.to_netcdf(os.path.join(output_dir, parameters_file))
 
         return
 

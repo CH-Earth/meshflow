@@ -61,13 +61,15 @@ def extract_centroid(
     """
     # if crs is missing
     if not gdf.crs:
+        # epsg value assumed as well
+        epsg = 4326
+
         # set to epsg=4326
-        gdf.set_crs(epsg=4326)
+        gdf.set_crs(epsg=epsg)
+
         # warn user of the assumption made
         warnings.warn("EPSG of `gdf` is missing and is assumed to be"
                       "4326")
-        # epsg value assumed as well
-        epsg = 4326
 
     # calculate centroid lat/lon values
     centroids_gdf = gdf.to_crs('+proj=cea').centroid.to_crs(epsg=epsg)
