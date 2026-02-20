@@ -33,6 +33,7 @@ from importlib import resources
 
 # import internal modules
 from .utils import is_int
+from ..templates.aliases import normalize_alias
 from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
 
 # custom type hints
@@ -57,7 +58,21 @@ DEFAULT_RUN_OPTIONS = resources.files("meshflow.templates").joinpath("default_in
 DEFAULT_CLASS_LINES = resources.files("meshflow.templates").joinpath("default_CLASS_lines.json")
 DEFAULT_CLASS_TYPES = resources.files("meshflow.templates").joinpath("default_CLASS_types.json")
 
-# global variables and helper functions
+# GWF-inspired default parameter names
+DEFAULT_GWF_PARAMS: set = {
+    'needleleaf',
+    'broadleaf',
+    'shrubland',
+    'grassland',
+    'wetland',
+    'cropland',
+    'barrenland',
+    'urban',
+    'water',
+    'ice'
+}
+
+# helper functions
 def raise_helper(msg):
     """Jinja2 helper function to raise exceptions."""
     raise Exception(msg)
@@ -150,7 +165,6 @@ def render_class_template(
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
-
     for gru, params in class_grus.items():
         d = {}
         for param, param_value in params.items():
@@ -177,10 +191,38 @@ def render_class_template(
 
     # deep update GRU blocks
     for block in gru_block['vars']:
+        # make a deep copy of the default data to avoid modifying the original
         new_data = copy.deepcopy(data)
 
+        # select the default parameter set based on the 'class' key in the block
+        # if the 'class' key is not present, use the default parameter set `class_fillers`
+        class_category_name = block.get('veg').get('class', None)
+        if class_category_name is not None:
+            # normalize the class category name using aliases
+            normalized_class_category_name = normalize_alias(class_category_name)
+
+            # if the normalized class category name is not in the default data, raise an error
+            if normalized_class_category_name not in DEFAULT_GWF_PARAMS:
+                class_category_name = 'class_fillers'
+            else:
+                class_category_name = normalized_class_category_name + '_defaults'
+        else:
+            class_category_name = 'class_fillers'
+
+        # warnings messages
+        if class_category_name == 'class_fillers':
+            warnings.warn(f"Using the default parameter set for `class_fillers` "
+                          "for the GRU block with class assigned as "
+                          f"{class_category_name}. Parameter values may not "
+                          "have sound physical meanings.")
+        else:
+            warnings.warn("Using the Global Water Futures (GWF) default "
+                          f"parameter set for class category `{class_category_name}`."
+                          " The parameter set assigned is based on GWF's "
+                          f"`{normalized_class_category_name}` category.")
+
         # deep merge
-        it = deep_merge(new_data['class_fillers'], block)
+        it = deep_merge(new_data[class_category_name], block)
 
         # update the block dictionary
         populating_list.append(it)
@@ -207,8 +249,6 @@ def render_class_template(
 
     # create the template environment
     template = environment.get_template(template_class_jinja_path)
-
-    print(class_grus)
 
     # create content
     content = template.render(

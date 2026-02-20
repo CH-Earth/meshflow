@@ -100,49 +100,49 @@
 #}
 {% set cursor = namespace(position_gru=0) %}
 {#
-     description: like other blocks, the `gru_block` consists of 4
-     main keys:
-        * variables,
-        * comments,
-        * formats, and
-        * columns (only for comments.)
-     The `variables' section consists of various blocks (representing
-     GRUs.) Since the order of `blocks' is important, the content of
-     `variables' is a list, unlike other sections where the content
-     is a dictionary.
-     
-     Each block comes with 4 sub-sections (order matters):
-        * veg,
-        * hyd,
-        * soil, and
-        * prog.
-     Each sub-section is templated differently, hence the separation in
-     the `variables' block components. Each sub-section is divided into
-     various `line#' s where the lines describe the CLASS(IC) inputs.
-     
-     The `line#' s start from 5 and end with 17. So, an iteration from 5-17
-     can be done.
-    
-     The `veg' section is defined uniquely for each `veg' class (or category,)
-     and are described below:
-         * if `class' is "needleleaf":
-             -> the first column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "broadleaf":
-             -> the second column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "crops":
-             -> the third column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "grass":
-             -> the forth column of the `veg' section is populated, and the 
-                rest is set as `0.000', and
-         * if `class' is "barrenland":
-             -> the fifth column of the first sub-sub-section of `veg' section
-                is populated, and nothing will be set for the second
-                sub-sub-section.
-        for more information and how the `veg' section is populated, check out
-        the reference.
+    description: like other blocks, the `gru_block` consists of 4
+    main keys:
+    * variables,
+    * comments,
+    * formats, and
+    * columns (only for comments.)
+    The `variables' section consists of various blocks (representing
+    GRUs.) Since the order of `blocks' is important, the content of
+    `variables' is a list, unlike other sections where the content
+    is a dictionary.
+
+    Each block comes with 4 sub-sections (order matters):
+    * veg,
+    * hyd,
+    * soil, and
+    * prog.
+    Each sub-section is templated differently, hence the separation in
+    the `variables' block components. Each sub-section is divided into
+    various `line#' s where the lines describe the CLASS(IC) inputs.
+
+    The `line#' s start from 5 and end with 17. So, an iteration from 5-17
+    can be done.
+
+    The `veg' section is defined uniquely for each `veg' class (or category,)
+    and are described below:
+        * if `class' is "needleleaf":
+            -> the first column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "broadleaf":
+            -> the second column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "crops":
+            -> the third column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "grass":
+            -> the forth column of the `veg' section is populated, and the 
+            rest is set as `0.000', and
+        * if `class' is "barrenland":
+            -> the fifth column of the first sub-sub-section of `veg' section
+            is populated, and nothing will be set for the second
+            sub-sub-section.
+    for more information and how the `veg' section is populated, check out
+    the reference.
 
     references:
     ~~~~~~~~~~~
