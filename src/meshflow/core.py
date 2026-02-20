@@ -796,7 +796,6 @@ class MESHWorkflow(object):
         included_processes = self.check_process_parameters(
             options_dict=self.options_dict,
             return_processes=True)
-
         # Generate land-cover dependent setting files for MESH
         self.class_dict = self.init_class(return_dict=True)
 
@@ -1392,17 +1391,17 @@ class MESHWorkflow(object):
         parameters_ds = self.init_parameters_ds(return_ds=True) # creates self.parameters_ds attribute
 
         # if return is requested, return the hydrology dictionary
-        hydrology_dict = {
+        hydrology_file_dict = {
                 'routing': routing_dict,
                 'hydrology': hydrology_dict,
             }
 
         if return_dict and return_ds:
-            return hydrology_dict, parameters_ds
+            return hydrology_file_dict, parameters_ds
         elif return_ds:
             return parameters_ds
         elif return_dict:
-            return hydrology_dict, parameters_ds
+            return hydrology_file_dict, parameters_ds
 
         return
 
