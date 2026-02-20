@@ -180,7 +180,7 @@ def render_class_template(
         new_data = copy.deepcopy(data)
 
         # deep merge
-        it = deep_merge(new_data['class_defaults'], block)
+        it = deep_merge(new_data['class_fillers'], block)
 
         # update the block dictionary
         populating_list.append(it)
@@ -207,6 +207,8 @@ def render_class_template(
 
     # create the template environment
     template = environment.get_template(template_class_jinja_path)
+
+    print(class_grus)
 
     # create content
     content = template.render(
