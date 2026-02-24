@@ -6,9 +6,9 @@
         "flz": 0.001
     },
     "hydrology": {
-        "zsnl": 0.05,
-        "zpls": 0.06,
-        "zplg": 0.2,
+        "zsnl": 0.1,
+        "zpls": 0.1,
+        "zplg": 0.1,
         "iwf": 1
     }
 }

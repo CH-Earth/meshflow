@@ -22,7 +22,6 @@
             "optional": []
         }
     },
-
     "baseflowflag":
     {
         "wf_lzs":
@@ -32,10 +31,9 @@
             "optional": ["WrchrgIni"]
         }
     },
-
     "_necessary":
     {
-        "hydrology": ["ZSNL", "ZPLS", "ZPLG"],
+        "hydrology": ["ZSNL", "ZPLS", "ZPLG", "IWF"],
         "routing": []
     }
 }

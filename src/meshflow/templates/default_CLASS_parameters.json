@@ -919,7 +919,7 @@
             }
         }
     },
-    "ice_defaults": {
+    "snow_defaults": {
         "veg": {
             "class": "ice",
             "line5": {
