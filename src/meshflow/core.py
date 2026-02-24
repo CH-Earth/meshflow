@@ -1279,7 +1279,7 @@ class MESHWorkflow(object):
                             if key.lower() != 'class':
                                 class_gru[gru][key.lower()] = value
                 else:
-                    warnings.warn(f"GRU {gru} not found in landcover classes. Skipping...")
+                    warnings.warn(f"Landcover class {gru} not used to generate GRUs. Skipping...")
 
         # if return is requested, return the class dictionary
         if return_dict:
@@ -1396,12 +1396,12 @@ class MESHWorkflow(object):
                 'hydrology': hydrology_dict,
             }
 
-        if return_dict and return_ds:
+        if all([return_dict, return_ds]):
             return hydrology_file_dict, parameters_ds
         elif return_ds:
             return parameters_ds
         elif return_dict:
-            return hydrology_file_dict, parameters_ds
+            return hydrology_file_dict
 
         return
 

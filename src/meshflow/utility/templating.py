@@ -59,18 +59,10 @@ DEFAULT_CLASS_LINES = resources.files("meshflow.templates").joinpath("default_CL
 DEFAULT_CLASS_TYPES = resources.files("meshflow.templates").joinpath("default_CLASS_types.json")
 
 # GWF-inspired default parameter names
-DEFAULT_GWF_PARAMS: set = {
-    'needleleaf',
-    'broadleaf',
-    'shrubland',
-    'grassland',
-    'wetland',
-    'cropland',
-    'barrenland',
-    'urban',
-    'water',
-    'ice'
-}
+# leading DEFAULT_CLASS_PARAMS to read the default keys
+with open(DEFAULT_CLASS_PARAMS, 'r') as file:
+    _default_class_params = json.load(file)
+DEFAULT_GWF_PARAMS: set = {p.split('_')[0] for p in _default_class_params.keys() if p.endswith('_defaults')}
 
 # helper functions
 def raise_helper(msg):
@@ -203,14 +195,14 @@ def render_class_template(
 
             # if the normalized class category name is not in the default data, raise an error
             if normalized_class_category_name not in DEFAULT_GWF_PARAMS:
-                class_category_name = 'class_fillers'
+                normalized_class_category_name = 'class_fillers'
             else:
-                class_category_name = normalized_class_category_name + '_defaults'
+                normalized_class_category_name += '_defaults'
         else:
-            class_category_name = 'class_fillers'
+            normalized_class_category_name = 'class_fillers'
 
         # warnings messages
-        if class_category_name == 'class_fillers':
+        if normalized_class_category_name == 'class_fillers':
             warnings.warn(f"Using the default parameter set for `class_fillers` "
                           "for the GRU block with class assigned as "
                           f"{class_category_name}. Parameter values may not "
@@ -222,7 +214,7 @@ def render_class_template(
                           f"`{normalized_class_category_name}` category.")
 
         # deep merge
-        it = deep_merge(new_data[class_category_name], block)
+        it = deep_merge(new_data[normalized_class_category_name], block)
 
         # update the block dictionary
         populating_list.append(it)

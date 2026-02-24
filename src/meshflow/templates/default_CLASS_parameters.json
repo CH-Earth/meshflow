@@ -1,7 +1,7 @@
 {
     "class_fillers": {
         "veg": {
-            "class": "",
+            "class": "needleleaf",
             "line5": {
                 "fcan": 1,
                 "lamx": 1.45
