@@ -287,9 +287,7 @@
                 {%- set extra_space = "" -%}
             {%- endif -%}
             {# if barrenland, no `val' is defined for qa50, vpda, psgb #}
-            {%- if (class == 'barrenland' or class == 'water' or class == 'urban')
-                and (number_accepted_elements == 4)
-                -%}
+            {%- if (order.get(class, -1) == 4) and (number_accepted_elements == 4) -%}
                 {{- extra_space }}{{ "   0.000   0.000   0.000   0.000" -}}
             {%- else -%}
             {# if not, print normally #}
