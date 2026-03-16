@@ -154,6 +154,11 @@ def render_class_template(
     # populate new dictionary for GRU blocks in the CLASS file
     populating_list = []
 
+    import pprint
+    print('class_gru: ')
+    pprint.pprint(class_grus)
+    print("\n")
+
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
@@ -180,8 +185,13 @@ def render_class_template(
             else:
                 d[param_type][f'line{param_line}'] = {param: param_value}
         gru_block['vars'].append(d)
+    
+    import pprint
+    print('gru_block before:')
+    pprint.pprint(gru_block)
+    print("\n")
 
-    # deep update GRU blocks
+    # deep update GRU blocks with default parameters
     for block in gru_block['vars']:
         # make a deep copy of the default data to avoid modifying the original
         new_data = copy.deepcopy(data)
@@ -252,6 +262,12 @@ def render_class_template(
         formats="formats",
         columns="columns",
     )
+
+    # DEBUG
+    import pprint
+    print('gru_block after:')
+    pprint.pprint(gru_block)
+    # END DEBUG
 
     return content if content.endswith('\n') else content + '\n'
 
