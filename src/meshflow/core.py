@@ -1257,29 +1257,46 @@ class MESHWorkflow(object):
             # e.g., 'needleleaf deciduous' -> ['needleleaf', 'deciduous']
             # build the gru dictionary for the gru block
             class_gru[gru_number] = {
-                'class': 'needleleaf', # default value for everything
+                'class': 'needleleaf', # default value for everything to begin with, will be updated later by user inputs
                 'mid': mid,
             }
 
         # update the class_gru dictionary with user inputs
         if 'class_params' in self.settings and 'grus' in self.settings['class_params']:
             for gru, _class_dict in self.settings['class_params']['grus'].items():
-
-                # check if the gru is in the class_gru dictionary
                 if gru in class_gru:
-                    # if only a string is provided—must be the class name only
-                    if isinstance(_class_dict, str):
+                    # if a list of CLASS parameters are provided, the GRU is then `mixed`
+                    # `_class_dict` naming is a misnomer; it can be a list or dictionary
+                    if isinstance(_class_dict, list):
+                        # preserve the `mid` value
+                        _mid = class_gru[gru]['mid']
+                        # remove the default `class` value since it is not a single class GRU anymore
+                        class_gru[gru].pop('class')
+                        # make a list for the gru CLASS parameters
+                        class_gru[gru] = []
+                        # loop over each element and add CLASS parameters
+                        for group in _class_dict:
+                            updated_class_dict = self._extract_class_params(group)
+                            class_gru[gru].append(updated_class_dict)
+                        # adding `mid` as a key to the first dictionary in the list
+                        class_gru[gru][0]['mid'] = _mid
+
+                    elif isinstance(_class_dict, dict):
+                        class_gru[gru].update(self._extract_class_params(_class_dict))
+
+                    elif isinstance(_class_dict, str):
                         class_gru[gru]['class'] = _class_dict
-                    elif isinstance(_class_dict, dict) and 'class' in _class_dict:
-                        # update the class_gru dictionary with user inputs
-                        class_gru[gru]['class'] = _class_dict['class']
-                        # adding whatever is in `_class_dict` to the class_gru
-                        # dictionary, except for the 'class' key
-                        for key, value in _class_dict.items():
-                            if key.lower() != 'class':
-                                class_gru[gru][key.lower()] = value
+
+                    else:
+                        raise ValueError("`class_params['grus']` must contain "
+                                        "either a list of classes (for mixed vegetaion GRUs)"
+                                        " or a dictionary with a 'class' key for a "
+                                        "single vegetaion type GRU")
                 else:
-                    warnings.warn(f"Landcover class {gru} not used to generate GRUs. Skipping...")
+                    warnings.warn(
+                        f"GRU {gru} not found in landcover classes. Skipping...",
+                        UserWarning,
+                    )
 
         # if return is requested, return the class dictionary
         if return_dict:
@@ -2166,3 +2183,58 @@ class MESHWorkflow(object):
                     base_dict[key] = value
 
         return base_dict
+
+    def _extract_class_params(
+        self,
+        class_dict: Dict[str, Any],
+        return_dict: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extract and structure CLASS parameters from the
+        provided class dictionary.
+
+        Parameters
+        ----------
+        class_dict : dict
+            Dictionary containing CLASS configuration
+            parameters, including GRU definitions.
+        return_dict : bool, optional
+            If True, returns the structured CLASS parameters as
+            a dictionary. If False (default), assigns the structured
+            parameters to an instance variable and returns None.
+
+        Returns
+        -------
+        dict or None
+            The structured CLASS parameters if `return_dict` is
+            True, otherwise None.
+
+        Notes
+        -----
+        - Processes the GRU definitions in the `class_dict` to extract
+          relevant parameters.
+        - Handles both single and multiple class definitions for GRUs.
+        - The resulting structured parameters are organized in a way
+          that can be easily used for rendering.
+        """
+        # creating an empty dictionary to store the extracted parameters
+        d = {}
+
+        # check the dtype
+        if not isinstance(class_dict, dict):
+            raise ValueError("class parameters must be be provided through a dictionary")
+
+        # update the class_gru dictionary with user inputs
+        d['class'] = class_dict['class']
+
+        # adding whatever is in `_class_dict` to the class_gru
+        # dictionary, except for the 'class' key
+        for key, value in class_dict.items():
+            if key.lower() != 'class':
+                d[key.lower()] = value
+
+        # assure returning the dictionary
+        if return_dict:
+            return d
+
+        return

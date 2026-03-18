@@ -243,41 +243,30 @@
 {# iterate over the blocks and populate sections #}
 {% for block_element in gru_block.get(variables) %}
     {# necessary dictionary definitions #}
-    {%- set veg_dict = block_element.get(veg) -%}
+    {%- set veg_raw = block_element.get(veg) -%}
     {%- set hyd_dict = block_element.get(hyd) -%}
     {%- set prog_dict = block_element.get(prog) -%}
     {%- set soil_dict = block_element.get(soil) -%}
-    {# necessary variable definitions #}
-    {%- set class = veg_dict.get('class') -%}
-    {# building `veg' section #}
-    {# first sub-sub-section #}
-    {# put zeros given the order of class #}
-    {%- set empty_predecessor = "   0.000" * order.get(class) -%}
+    {# normalize veg to always be a list for uniform handling #}
+    {%- if veg_raw is mapping -%}
+        {%- set veg_list = [veg_raw] -%}
+    {%- else -%}
+        {%- set veg_list = veg_raw -%}
+    {%- endif -%}
     {#
-        the cursor moves 8 characters (padding of 3 + 0 numbers) times
-        the order of the chosen class
-    #}
-    {%- set cursor.position_gru = empty_predecessor | length -%}
-    {# 
         the `veg' sub-section
         ~~~~~~~~~~~~~~~~~~~~~
+        Uses column-by-column rendering to support both single-veg
+        and mixed-veg GRUs. For each column position, checks if any
+        veg dict maps to that column via the `order' dictionary.
     #}
     {% for line in range(5, 12) %}
         {# line string name in string #}
         {%- set line_str = "line" + (line | string) -%}
-        {# line information #}
-        {%- set line_dict = veg_dict.get(line_str) -%}
-        {# iterate over the line_dict values in order #}
+        {# iterate over the elements in order #}
         {%- for element in line_orders.get(line_str) -%}
             {# either 4 or 5 elements are accepted #}
             {%- set number_accepted_elements = veg_lines_elements.get(line_str).get(element) -%}
-            {# calculate how many 0.000 value to be put after the element is printed #}
-            {%- set empty_successor = "   0.000" * 
-                (number_accepted_elements - order.get(class) - 1) 
-             -%}
-            {%- set val = format_float(line_dict.get(element), 3) -%}
-            {# define padding #}
-            {%- set padding = " " * (8 - val | string | length) -%}
             {# if 4 elements are accepted, extra spacing is required #}
             {%- if (number_accepted_elements == 4)
                 and (line in [9, 10, 11])
@@ -286,15 +275,21 @@
             {%- else -%}
                 {%- set extra_space = "" -%}
             {%- endif -%}
-            {# if barrenland, no `val' is defined for qa50, vpda, psgb #}
-            {%- if (order.get(class, -1) == 4) and (number_accepted_elements == 4) -%}
-                {{- extra_space }}{{ "   0.000   0.000   0.000   0.000" -}}
-            {%- else -%}
-            {# if not, print normally #}
-                {# print `veg' line gru information #}
-                {{- extra_space }}{{ empty_predecessor }}{{ padding }}{{- val -}}{{ empty_successor -}}
-            {%- endif -%}
-            {# go to the next element of the line #}
+            {{- extra_space -}}
+            {# iterate over each column position #}
+            {%- for col_idx in range(number_accepted_elements) -%}
+                {# search veg_list for a dict whose class maps to this column #}
+                {%- set col_ns = namespace(val=0.0) -%}
+                {%- for vd in veg_list -%}
+                    {%- if order.get(vd.get('class'), -1) == col_idx -%}
+                        {%- set col_ns.val = vd.get(line_str).get(element) -%}
+                    {%- endif -%}
+                {%- endfor -%}
+                {# format and output the column value #}
+                {%- set val = format_float(col_ns.val, 3) -%}
+                {%- set padding = " " * (8 - val | string | length) -%}
+                {{- padding }}{{- val -}}
+            {%- endfor -%}
         {%- endfor -%}
         {%- set line_comment = gru_block.get(comments).get(line_str) -%}
         {{ " " * 5 }}{{ line_comment }}

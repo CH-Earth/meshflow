@@ -33,8 +33,10 @@ from importlib import resources
 
 # import internal modules
 from .utils import is_int
+from ._default_lists import _class_veg_params
 from ..templates.aliases import normalize_alias
 from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
+
 
 # custom type hints
 try:
@@ -139,92 +141,94 @@ def render_class_template(
     Exception
         If a Jinja2 template error occurs.
     """
-    # load the default values for each GRU
-    with open(default_params_path, 'r') as file:
-        data = json.load(file)
-    with open(default_header_path, 'r') as file:
-        info = json.load(file)
-    with open(default_case_path, 'r') as file:
-        case = json.load(file)
-    with open(default_lines_path, 'r') as file:
-        gru_lines = json.load(file)
-    with open(default_types_path, 'r') as file:
-        gru_types = json.load(file)
+    # load default CLASS metadata and parameter maps
+    defaults: Dict[str, Any] = {}
+    for key, path in (
+        ("data", default_params_path),
+        ("info", default_header_path),
+        ("case", default_case_path),
+        ("gru_lines", default_lines_path),
+        ("gru_types", default_types_path),
+    ):
+        with open(path, 'r', encoding='utf-8') as fh:
+            defaults[key] = json.load(fh)
+
+    data = defaults["data"]
+    info = defaults["info"]
+    case = defaults["case"]
 
     # populate new dictionary for GRU blocks in the CLASS file
     populating_list = []
 
-    import pprint
-    print('class_gru: ')
-    pprint.pprint(class_grus)
-    print("\n")
-
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
-    for gru, params in class_grus.items():
-        d = {}
-        for param, param_value in params.items():
-            if param == 'class':
-                d['veg'] = {'class': param_value}
-                continue
-            param_line = gru_lines[param]
-            param_type = gru_types[param]
+    for _, params in class_grus.items():
+        # `gru` is a number of GRU
+        # `params` is the dictionary of parameters entered by the user
+        if isinstance(params, dict):
+            gru_block['vars'].append(_extract_class_params(params, defaults))
 
-            # add the line number as a key to the parameter type dictionary
-            # if the `param_type` key does not exist, add it first
-            if param_type not in d.keys():
-                d[param_type] = {}
+        elif isinstance(params, list):
+            # this case only happens when multiple parameter dictionaries
+            # are provided for a single GRU meaning the GRU is classified
+            # as a mixed-vegetated GRU.
+            # ONLY the `veg` key will have a value of a list of dictionaries,
+            # the rest will remain as is.
+            final_params_dict = {'veg': []}
+            for param_dict in params:
+                class_params = _extract_class_params(param_dict, defaults)
+                if 'veg' in class_params.keys():
+                    final_params_dict['veg'].append(class_params['veg'])
+                rest_params = {k: v for k, v in class_params.items() if k != 'veg'}
+                final_params_dict.update(rest_params)
 
-            # ensure the line key exists
-            if f'line{param_line}' not in d[param_type].keys():
-                d[param_type][f'line{param_line}'] = {}  # ensure the key exists
+            gru_block['vars'].append(final_params_dict)
 
-            if param_type in d.keys():
-                d[param_type][f'line{param_line}'].update({param: param_value})
-            else:
-                d[param_type][f'line{param_line}'] = {param: param_value}
-        gru_block['vars'].append(d)
-    
-    import pprint
-    print('gru_block before:')
-    pprint.pprint(gru_block)
-    print("\n")
-
+    # sections to deep update; `veg` is a special section where the type of
+    # vegetation class needs to be specified explicitely, therefore, 
+    # treated separately
+    sections = ['hyd', 'soil', 'prog']
     # deep update GRU blocks with default parameters
-    for block in gru_block['vars']:
+    for idx, block in enumerate(gru_block['vars']):
         # make a deep copy of the default data to avoid modifying the original
         new_data = copy.deepcopy(data)
+        # empty deep updated block dictionary
+        it = {}
+
+        # let's sort out `veg` section first
+        section = 'veg'
 
         # select the default parameter set based on the 'class' key in the block
         # if the 'class' key is not present, use the default parameter set `class_fillers`
-        class_category_name = block.get('veg').get('class', None)
-        if class_category_name is not None:
-            # normalize the class category name using aliases
-            normalized_class_category_name = normalize_alias(class_category_name)
-
-            # if the normalized class category name is not in the default data, raise an error
-            if normalized_class_category_name not in DEFAULT_GWF_PARAMS:
-                normalized_class_category_name = 'class_fillers'
-            else:
-                normalized_class_category_name += '_defaults'
+        if isinstance(block.get('veg', None), list):
+            veg = [] # for legibility; not necessary
+            # we are dealing with a mixed-vegetated GRU
+            for veg_block in block['veg']:
+                class_category_name = veg_block['class']
+                normalized_class_category_name = _specify_alias(class_category_name, idx)
+                veg.append(deep_merge(new_data[normalized_class_category_name]['veg'], veg_block))
+        elif isinstance(block.get('veg', None), dict):
+            veg = {} # for legibility; not necessary
+            # we are dealing with a single-vegetated GRU
+            class_category_name = block['veg']['class']
+            normalized_class_category_name = _specify_alias(class_category_name, idx)
+            veg = deep_merge(new_data[normalized_class_category_name]['veg'], block['veg'])
         else:
-            normalized_class_category_name = 'class_fillers'
+            veg = {} # for legibility; not necessary
+            # if the 'veg' key is not present, we will use the default parameter set `class_fillers`
+            normalized_class_category_name = _specify_alias(None, idx)
+            veg = deep_merge(new_data[normalized_class_category_name]['veg'], {})
 
-        # warnings messages
-        if normalized_class_category_name == 'class_fillers':
-            warnings.warn(f"Using the default parameter set for `class_fillers` "
-                          "for the GRU block with class assigned as "
-                          f"{class_category_name}. Parameter values may not "
-                          "have sound physical meanings.")
-        else:
-            warnings.warn("Using the Global Water Futures (GWF) default "
-                          f"parameter set for class category `{class_category_name}`."
-                          " The parameter set assigned is based on GWF's "
-                          f"`{normalized_class_category_name}` category.")
+        # updating veg section that is deep updated with default parameters
+        it['veg'] = veg
 
-        # deep merge
-        it = deep_merge(new_data[normalized_class_category_name], block)
+        # now that we have a `normalized_class_category_name` variable, we
+        # can proceed it to deep merge the rest of the sections in the block
+        # with the corresponding default parameter set
+        for section in sections:
+            values = block.get(section, {}) # always a dictionary or None
+            it[section] = deep_merge(new_data[normalized_class_category_name][section], values)
 
         # update the block dictionary
         populating_list.append(it)
@@ -262,12 +266,6 @@ def render_class_template(
         formats="formats",
         columns="columns",
     )
-
-    # DEBUG
-    import pprint
-    print('gru_block after:')
-    pprint.pprint(gru_block)
-    # END DEBUG
 
     return content if content.endswith('\n') else content + '\n'
 
@@ -496,3 +494,111 @@ def render_run_options_template(
         return content
     else:
         return content + '\n'
+
+def _extract_class_params(
+    class_dict: Dict[str, Any],
+    defaults: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Extract CLASS parameters from a given dictionary and return a new
+    dictionary with the parameters organized by their types and line numbers.
+
+    Parameters
+    ----------
+    class_dict : dict
+        Dictionary containing CLASS parameters, where keys are parameter names
+        and values are the corresponding parameter values.
+    defaults : dict
+        Dictionary containing default CLASS lines and types, with keys
+        'gru_lines' and 'gru_types' mapping parameter names to their line numbers
+        and types.
+
+    Returns
+    -------
+    dict
+        A new dictionary with CLASS parameters organized by their types and
+        line numbers.
+
+    Raises
+    ------
+    ValueError
+        If the input `class_dict` is not a dictionary.
+    """
+    # check the dtype
+    if not isinstance(class_dict, dict):
+        raise ValueError("class parameters must be be provided through a dictionary")
+
+    # load default CLASS lines and types
+    gru_lines = defaults["gru_lines"]
+    gru_types = defaults["gru_types"]
+
+    # extract parameters and organize them by type and line number
+    extracted_params = {}
+    for param, param_value in class_dict.items():
+        if param == 'class':
+            extracted_params['veg'] = {'class': param_value}
+            continue
+        param_line = gru_lines[param]
+        param_type = gru_types[param]
+
+        # add the line number as a key to the parameter type dictionary
+        # if the `param_type` key does not exist, add it first
+        if param_type not in extracted_params.keys():
+            extracted_params[param_type] = {}
+
+        # ensure the line key exists
+        if f'line{param_line}' not in extracted_params[param_type].keys():
+            extracted_params[param_type][f'line{param_line}'] = {}  # ensure the key exists
+
+        if param_type in extracted_params.keys():
+            extracted_params[param_type][f'line{param_line}'].update({param: param_value})
+        else:
+            extracted_params[param_type][f'line{param_line}'] = {param: param_value}
+
+    return extracted_params
+
+def _specify_alias(
+    _class_category_name: str,
+    idx: Optional[int] = None,
+) -> str:
+    """
+    Specify the normalized alias for a given class category name.
+
+    Parameters
+    ----------
+    _class_category_name : str
+        The original class category name.
+
+    Returns
+    -------
+    str
+        The normalized class category name.
+    """
+    
+    if _class_category_name is not None:
+        # normalize the class category name using aliases
+        normalized_class_category_name = normalize_alias(_class_category_name)
+
+        # if the normalized class category name is not in the default data, raise an error
+        if normalized_class_category_name not in DEFAULT_GWF_PARAMS:
+            normalized_class_category_name = 'class_fillers'
+        else:
+            normalized_class_category_name += '_defaults'
+    else:
+        normalized_class_category_name = 'class_fillers'
+
+    # warnings messages
+    if normalized_class_category_name == 'class_fillers':
+        warnings.warn(f"Using the default parameter set for `class_fillers` "
+                        "for the GRU block with class assigned as "
+                        f"{_class_category_name} and GRU location {idx}. "
+                        "Parameter values may not have sound "
+                        "physical meanings.")
+    elif normalized_class_category_name != 'class_fillers':
+        warnings.warn("Using the Global Water Futures (GWF) default "
+                        f"parameter set for class category `{_class_category_name}`"
+                        f" with GRU location {idx}."
+                        " The parameter set assigned is based on GWF's "
+                        f"`{normalized_class_category_name}` category.")
+
+    return normalized_class_category_name
