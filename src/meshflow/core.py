@@ -57,6 +57,7 @@ from ._default_dicts import (
 from . import utility
 
 from .utility import parameters_local_attrs as DEFAULT_PARAMTETERS_LOCAL_ATTRS
+from .templates.aliases import normalize_alias
 
 # custom type hints
 try:
@@ -1403,6 +1404,15 @@ class MESHWorkflow(object):
                             f"GRU {gru} not found in landcover classes. Skipping...",
                             UserWarning,
                         )
+        # force IWF=0 for non-vegetated GRU types (water, wetland, etc.)
+        # where interflow is not physically meaningful
+        _no_iwf_types = {'water', 'wetland'}
+        for gru_id in hydrology_dict:
+            gru_name = self.landcover_classes.get(gru_id, '')
+            canonical = normalize_alias(gru_name.split()[0]) if gru_name else ''
+            if canonical in _no_iwf_types:
+                hydrology_dict[gru_id]['iwf'] = 0
+
         # always initiating the parameters_ds object, which may or may
         # not be used later on, but is necessary for the hydrology configuration
         parameters_ds = self.init_parameters_ds(return_ds=True) # creates self.parameters_ds attribute
