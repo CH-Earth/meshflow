@@ -67,7 +67,7 @@
                     "R2N": format_float(routing_column.get("r2n"), 3),
                     "R1N": format_float(routing_column.get("r1n"), 3),
                     "PWR": format_float(routing_column.get("pwr"), 3),
-                    "FLZ": format_scientific(routing_column.get("flz"), 1)
+                    "FLZ": format_scientific(routing_column.get("flz"), 3)
                     }
                 -%}
                 {# define simple padding - FLZ is not pretty printed though #}
@@ -163,8 +163,13 @@
         {# format the `param_val', keeping it simple #}
         {%- if param | lower == 'iwf' -%}
             {%- set precision =  0 -%}
+            {%- set use_scientific = false -%}
+        {%- elif param | lower == 'flz' -%}
+            {%- set precision = 3 -%}
+            {%- set use_scientific = true -%}
         {%- else -%}
             {%- set precision = 3 -%}
+            {%- set use_scientific = false -%}
         {%- endif -%}
         {# iterate over each block and write `param' values #}
         {% for gru_block in gru_dict %}
@@ -172,7 +177,11 @@
             {%- set gru_name = gru_block.keys() | first -%}
             {%- set gru_d = gru_block.get(gru_name) -%}
             {# define a list of these parameters #}
-            {%- set param_val = format_float(gru_d.get(param | lower), precision) -%}
+            {%- if use_scientific -%}
+                {%- set param_val = format_scientific(gru_d.get(param | lower), precision) -%}
+            {%- else -%}
+                {%- set param_val = format_float(gru_d.get(param | lower), precision) -%}
+            {%- endif -%}
             {# print values #}
             {% if index.gru == 0 %}
                 {# define padding, 6 is because that where the first variable
