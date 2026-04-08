@@ -20,9 +20,10 @@
     {# define number of decimals for float values #}
     {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
 {% endmacro %}
-{% macro format_scientific(value, decimals) -%}
-    {{ "%.decimalsE" | replace("decimals", decimals) | format(value) }}
-{%- endmacro %}
+{% macro format_scientific(value, decimals) %}
+    {# format value in scientific notation, e.g., 1.000E-03 #}
+    {{- "%.decimalsE" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
 {% macro calculate_padding_end(column, val, cursor) %}
     {# define the padding given the column the `val' s length #}
     {{- " " * (column - (val | string | length) - cursor - 1) -}}
@@ -203,10 +204,11 @@
             {% else %}
                 {# only print padding and param_val if variable name is already
                 written #}
-                {%- set padding = " " * (cursor.gru - cursor.val) -%}
+                {%- set pad_width = [cursor.gru - cursor.val, 1] | max -%}
+                {%- set padding = " " * pad_width -%}
                 {{ padding }}{{ param_val -}}
                 {# the cursor value position #}
-                {%- set cursor.val = cursor.gru + (param_val | string | length) -%}
+                {%- set cursor.val = cursor.val + pad_width + (param_val | string | length) -%}
                 {# the cursor gru position #}
                 {%- if gru_name | string | length <= 5 -%}
                     {%- set lengths.title_padding = 6 -%}
