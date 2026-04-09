@@ -17,7 +17,6 @@ from pyproj import CRS
 # build-in libraries
 import warnings
 
-
 def extract_centroid(
     gdf: gpd.GeoDataFrame,
     obj_id: str,
@@ -62,13 +61,15 @@ def extract_centroid(
     """
     # if crs is missing
     if not gdf.crs:
+        # epsg value assumed as well
+        epsg = 4326
+
         # set to epsg=4326
-        gdf.set_crs(epsg=4326)
+        gdf.set_crs(epsg=epsg)
+
         # warn user of the assumption made
         warnings.warn("EPSG of `gdf` is missing and is assumed to be"
                       "4326")
-        # epsg value assumed as well
-        epsg = 4326
 
     # calculate centroid lat/lon values
     centroids_gdf = gdf.to_crs('+proj=cea').centroid.to_crs(epsg=epsg)
@@ -77,7 +78,6 @@ def extract_centroid(
     coords_df['lon'] = centroids_gdf.x
 
     return coords_df
-
 
 def prepare_mesh_coords(
     coords: pd.DataFrame,
@@ -118,7 +118,6 @@ def prepare_mesh_coords(
     coords = coords.copy().set_index(cat_dim).to_xarray()
     coords_ds = coords.rename({cat_dim: hru_dim})
     return coords_ds
-
 
 def _calculate_polygon_areas(
     gdf: gpd.GeoDataFrame,

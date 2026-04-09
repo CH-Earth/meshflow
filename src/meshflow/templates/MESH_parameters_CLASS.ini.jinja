@@ -16,6 +16,10 @@
     {# define number of decimals for float values #}
     {{- "%.decimalsf" | replace('decimals', decimals) | format(value) -}}
 {% endmacro %}
+{% macro format_scientific(value, decimals) %}
+    {# format value in scientific notation, e.g., 5.80E-03 #}
+    {{- "%.decimalsE" | replace('decimals', decimals) | format(value) -}}
+{% endmacro %}
 {% macro calculate_padding_end(column, val, cursor) %}
     {# define the padding given the column the `val' s length #}
     {{- " " * (column - (val | string | length) - cursor - 1) -}}
@@ -100,49 +104,49 @@
 #}
 {% set cursor = namespace(position_gru=0) %}
 {#
-     description: like other blocks, the `gru_block` consists of 4
-     main keys:
-        * variables,
-        * comments,
-        * formats, and
-        * columns (only for comments.)
-     The `variables' section consists of various blocks (representing
-     GRUs.) Since the order of `blocks' is important, the content of
-     `variables' is a list, unlike other sections where the content
-     is a dictionary.
-     
-     Each block comes with 4 sub-sections (order matters):
-        * veg,
-        * hyd,
-        * soil, and
-        * prog.
-     Each sub-section is templated differently, hence the separation in
-     the `variables' block components. Each sub-section is divided into
-     various `line#' s where the lines describe the CLASS(IC) inputs.
-     
-     The `line#' s start from 5 and end with 17. So, an iteration from 5-17
-     can be done.
-    
-     The `veg' section is defined uniquely for each `veg' class (or category,)
-     and are described below:
-         * if `class' is "needleleaf":
-             -> the first column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "broadleaf":
-             -> the second column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "crops":
-             -> the third column of the `veg' section is populated, and the 
-                rest is set as `0.000',
-         * if `class' is "grass":
-             -> the forth column of the `veg' section is populated, and the 
-                rest is set as `0.000', and
-         * if `class' is "barrenland":
-             -> the fifth column of the first sub-sub-section of `veg' section
-                is populated, and nothing will be set for the second
-                sub-sub-section.
-        for more information and how the `veg' section is populated, check out
-        the reference.
+    description: like other blocks, the `gru_block` consists of 4
+    main keys:
+    * variables,
+    * comments,
+    * formats, and
+    * columns (only for comments.)
+    The `variables' section consists of various blocks (representing
+    GRUs.) Since the order of `blocks' is important, the content of
+    `variables' is a list, unlike other sections where the content
+    is a dictionary.
+
+    Each block comes with 4 sub-sections (order matters):
+    * veg,
+    * hyd,
+    * soil, and
+    * prog.
+    Each sub-section is templated differently, hence the separation in
+    the `variables' block components. Each sub-section is divided into
+    various `line#' s where the lines describe the CLASS(IC) inputs.
+
+    The `line#' s start from 5 and end with 17. So, an iteration from 5-17
+    can be done.
+
+    The `veg' section is defined uniquely for each `veg' class (or category,)
+    and are described below:
+        * if `class' is "needleleaf":
+            -> the first column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "broadleaf":
+            -> the second column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "crops":
+            -> the third column of the `veg' section is populated, and the 
+            rest is set as `0.000',
+        * if `class' is "grass":
+            -> the forth column of the `veg' section is populated, and the 
+            rest is set as `0.000', and
+        * if `class' is "barrenland":
+            -> the fifth column of the first sub-sub-section of `veg' section
+            is populated, and nothing will be set for the second
+            sub-sub-section.
+    for more information and how the `veg' section is populated, check out
+    the reference.
 
     references:
     ~~~~~~~~~~~
@@ -162,12 +166,27 @@
         'broad': 1,
         'crops': 2,
         'crop': 2,
+        'cropland': 2,
         'grass': 3,
+        'grasses': 3,
         'grassland': 3,
+        'shrubland': 3,
+        'shrub': 3,
+        'shrubs': 3,
+        'wetland': 3,
+        'wetlands': 3,
         'barrenland': 4,
         'barren': 4,
         'urban': 4,
         'water': 4,
+        'ice': 4,
+        'snow': 4,
+        'iceandsnow': 4,
+        'ice-and-snow': 4,
+        'ice_and_snow': 4,
+        'ice_snow': 4,
+        'ice-snow': 4,
+        'ice snow': 4,
         'impervious': 4,
         'imperviousland': 4,
     }
@@ -228,41 +247,30 @@
 {# iterate over the blocks and populate sections #}
 {% for block_element in gru_block.get(variables) %}
     {# necessary dictionary definitions #}
-    {%- set veg_dict = block_element.get(veg) -%}
+    {%- set veg_raw = block_element.get(veg) -%}
     {%- set hyd_dict = block_element.get(hyd) -%}
     {%- set prog_dict = block_element.get(prog) -%}
     {%- set soil_dict = block_element.get(soil) -%}
-    {# necessary variable definitions #}
-    {%- set class = veg_dict.get('class') -%}
-    {# building `veg' section #}
-    {# first sub-sub-section #}
-    {# put zeros given the order of class #}
-    {%- set empty_predecessor = "   0.000" * order.get(class) -%}
+    {# normalize veg to always be a list for uniform handling #}
+    {%- if veg_raw is mapping -%}
+        {%- set veg_list = [veg_raw] -%}
+    {%- else -%}
+        {%- set veg_list = veg_raw -%}
+    {%- endif -%}
     {#
-        the cursor moves 8 characters (padding of 3 + 0 numbers) times
-        the order of the chosen class
-    #}
-    {%- set cursor.position_gru = empty_predecessor | length -%}
-    {# 
         the `veg' sub-section
         ~~~~~~~~~~~~~~~~~~~~~
+        Uses column-by-column rendering to support both single-veg
+        and mixed-veg GRUs. For each column position, checks if any
+        veg dict maps to that column via the `order' dictionary.
     #}
     {% for line in range(5, 12) %}
         {# line string name in string #}
         {%- set line_str = "line" + (line | string) -%}
-        {# line information #}
-        {%- set line_dict = veg_dict.get(line_str) -%}
-        {# iterate over the line_dict values in order #}
+        {# iterate over the elements in order #}
         {%- for element in line_orders.get(line_str) -%}
             {# either 4 or 5 elements are accepted #}
             {%- set number_accepted_elements = veg_lines_elements.get(line_str).get(element) -%}
-            {# calculate how many 0.000 value to be put after the element is printed #}
-            {%- set empty_successor = "   0.000" * 
-                (number_accepted_elements - order.get(class) - 1) 
-             -%}
-            {%- set val = format_float(line_dict.get(element), 3) -%}
-            {# define padding #}
-            {%- set padding = " " * (8 - val | string | length) -%}
             {# if 4 elements are accepted, extra spacing is required #}
             {%- if (number_accepted_elements == 4)
                 and (line in [9, 10, 11])
@@ -271,17 +279,21 @@
             {%- else -%}
                 {%- set extra_space = "" -%}
             {%- endif -%}
-            {# if barrenland, no `val' is defined for qa50, vpda, psgb #}
-            {%- if (class == 'barrenland' or class == 'water' or class == 'urban')
-                and (number_accepted_elements == 4)
-                -%}
-                {{- extra_space }}{{ "   0.000   0.000   0.000   0.000" -}}
-            {%- else -%}
-            {# if not, print normally #}
-                {# print `veg' line gru information #}
-                {{- extra_space }}{{ empty_predecessor }}{{ padding }}{{- val -}}{{ empty_successor -}}
-            {%- endif -%}
-            {# go to the next element of the line #}
+            {{- extra_space -}}
+            {# iterate over each column position #}
+            {%- for col_idx in range(number_accepted_elements) -%}
+                {# search veg_list for a dict whose class maps to this column #}
+                {%- set col_ns = namespace(val=0.0) -%}
+                {%- for vd in veg_list -%}
+                    {%- if order.get(vd.get('class'), -1) == col_idx -%}
+                        {%- set col_ns.val = vd.get(line_str).get(element) -%}
+                    {%- endif -%}
+                {%- endfor -%}
+                {# format and output the column value #}
+                {%- set val = format_float(col_ns.val, 3) -%}
+                {%- set padding = " " * (8 - val | string | length) -%}
+                {{- padding }}{{- val -}}
+            {%- endfor -%}
         {%- endfor -%}
         {%- set line_comment = gru_block.get(comments).get(line_str) -%}
         {{ " " * 5 }}{{ line_comment }}
@@ -303,13 +315,14 @@
             {%- if element == 'mid' -%}
                 {%- set val = line_dict.get(element) -%}
                 {%- set padding = " " * 3 -%}
-		{%- if class == 'water' -%}
-                    {{- padding }}{{ "0   " }}{{- val -}}
-		{%- else -%}
-                    {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
-		{%- endif -%}
+                {{- padding }}{{ mid.counter }}{{ " " }}{{- val -}}
 		{%- set mid.counter = mid.counter + 1 -%}
                 {%- set cursor.position_gru = cursor.position_gru + 4 + (padding | length) + (val | string | length) -%}
+            {%- elif element in ['xdrainh', 'ksat'] -%}
+                {%- set val = format_scientific(line_dict.get(element), 3) -%}
+                {%- set padding = " " * (13 - val | string | length) -%}
+                {{- padding }}{{- val -}}
+                {%- set cursor.position_gru = cursor.position_gru + (padding | length) + (val | string | length) -%}
             {%- else -%}
                 {%- set val = format_float(line_dict.get(element), 3) -%}
                 {%- set padding = " " * (8 - val | string | length) -%}

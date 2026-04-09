@@ -1,7 +1,7 @@
 {
-    "class_defaults": {
+    "class_fillers": {
         "veg": {
-            "class": "",
+            "class": "needleleaf",
             "line5": {
                 "fcan": 1,
                 "lamx": 1.45
@@ -87,6 +87,926 @@
                 "sno": 0,
                 "albs": 0,
                 "rhos": 0,
+                "gro": 1
+            }
+        }
+    },
+    "needleleaf_defaults": {
+        "veg": {
+            "class": "needleleaf",
+            "line5": {
+                "fcan": 1,
+                "lamx": 2.65
+            },
+            "line6": {
+                "lnz0": 0.405,
+                "lamn": 2.12
+            },
+            "line7": {
+                "alvc": 0.03,
+                "cmas": 12
+            },
+            "line8": {
+                "alic": 0.19,
+                "root": 1.00
+            },
+            "line9": {
+                "rsmn": 200,
+                "qa50": 30
+            },
+            "line10": {
+                "vpda": 0.65,
+                "vpdb": 1.05
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.1,
+                "fare": 1,
+                "dd": 3.13
+            },
+            "line13": {
+                "xslp": 0.199,
+                "xdrainh": 0.01,
+                "mann": 0.1,
+                "ksat": 5.8E-03,
+                "mid": "1 needleaf forest"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "broadleaf_defaults": {
+        "veg": {
+            "class": "broadleaf",
+            "line5": {
+                "fcan": 1,
+                "lamx": 4.10
+            },
+            "line6": {
+                "lnz0": 0.693,
+                "lamn": 0.5
+            },
+            "line7": {
+                "alvc": 0.05,
+                "cmas": 20
+            },
+            "line8": {
+                "alic": 0.29,
+                "root": 2.00
+            },
+            "line9": {
+                "rsmn": 125,
+                "qa50": 40
+            },
+            "line10": {
+                "vpda": 0.5,
+                "vpdb": 0.6
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 0.01,
+                "fare": 1,
+                "dd": 2.62
+            },
+            "line13": {
+                "xslp": 0.317,
+                "xdrainh": 0.29,
+                "mann": 0.1,
+                "ksat": 1.7E-03,
+                "mid": "2 breadleaf forest"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "shrubland_defaults": {
+        "veg": {
+            "class": "shrubland",
+            "line5": {
+                "fcan": 1,
+                "lamx": 1.75
+            },
+            "line6": {
+                "lnz0": -2.996,
+                "lamn": 1.5
+            },
+            "line7": {
+                "alvc": 0.03,
+                "cmas": 2.0
+            },
+            "line8": {
+                "alic": 0.19,
+                "root": 0.2
+            },
+            "line9": {
+                "rsmn": 100,
+                "qa50": 30
+            },
+            "line10": {
+                "vpda": 0.5,
+                "vpdb": 1.0
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 3.15
+            },
+            "line13": {
+                "xslp": 0.199,
+                "xdrainh": 0.01,
+                "mann": 0.1,
+                "ksat": 4.3E-03,
+                "mid": "3 Shrubland"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "grassland_defaults": {
+        "veg": {
+            "class": "grassland",
+            "line5": {
+                "fcan": 1,
+                "lamx": 1.5
+            },
+            "line6": {
+                "lnz0": -4.605,
+                "lamn": 1.5
+            },
+            "line7": {
+                "alvc": 0.05,
+                "cmas": 0.2
+            },
+            "line8": {
+                "alic": 0.29,
+                "root": 0.1
+            },
+            "line9": {
+                "rsmn": 100,
+                "qa50": 30
+            },
+            "line10": {
+                "vpda": 0.5,
+                "vpdb": 1.0
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 2.96
+            },
+            "line13": {
+                "xslp": 0.383,
+                "xdrainh": 0.01,
+                "mann": 0.035,
+                "ksat": 4.2E-03,
+                "mid": "4 Grassland"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "wetland_defaults": {
+        "veg": {
+            "class": "wetland",
+            "line5": {
+                "fcan": 1,
+                "lamx": 2.0
+            },
+            "line6": {
+                "lnz0": -2.526,
+                "lamn": 2.0
+            },
+            "line7": {
+                "alvc": 0.05,
+                "cmas": 3.0
+            },
+            "line8": {
+                "alic": 0.31,
+                "root": 1.0
+            },
+            "line9": {
+                "rsmn": 100,
+                "qa50": 30
+            },
+            "line10": {
+                "vpda": 0.5,
+                "vpdb": 1.0
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 4.33
+            },
+            "line13": {
+                "xslp": 0.0001,
+                "xdrainh": 0.01,
+                "mann": 0.05,
+                "ksat": 3.8E-03,
+                "mid": "5 Wetland"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 2,
+                "orgm3": 3
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 4,
+                "tbar2": 2,
+                "tbar3": 1,
+                "tcan": 4,
+                "tsno": 0,
+                "tpnd": 4
+            },
+            "line18": {
+                "thlq1": 0.25,
+                "thlq2": 0.15,
+                "thlq3": 0.04,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "cropland_defaults": {
+        "veg": {
+            "class": "cropland",
+            "line5": {
+                "fcan": 1,
+                "lamx": 2.25
+            },
+            "line6": {
+                "lnz0": -2.526,
+                "lamn": 0
+            },
+            "line7": {
+                "alvc": 0.06,
+                "cmas": 2.0
+            },
+            "line8": {
+                "alic": 0.34,
+                "root": 1
+            },
+            "line9": {
+                "rsmn": 85,
+                "qa50": 30
+            },
+            "line10": {
+                "vpda": 0.5,
+                "vpdb": 1.0
+            },
+            "line11": {
+                "psga": 100,
+                "psgb": 5
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 3.70
+            },
+            "line13": {
+                "xslp": 0.049,
+                "xdrainh": 0.01,
+                "mann": 0.03,
+                "ksat": 2.3E-03,
+                "mid": "6 Cropland"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "barrenland_defaults": {
+        "veg": {
+            "class": "barrenland",
+            "line5": {
+                "fcan": 1,
+                "lamx": 0
+            },
+            "line6": {
+                "lnz0": -6.908,
+                "lamn": 0
+            },
+            "line7": {
+                "alvc": 0.11,
+                "cmas": 0
+            },
+            "line8": {
+                "alic": 0.23,
+                "root": 0
+            },
+            "line9": {
+                "rsmn": 0,
+                "qa50": 0
+            },
+            "line10": {
+                "vpda": 0,
+                "vpdb": 0
+            },
+            "line11": {
+                "psga": 0,
+                "psgb": 0
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 1,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 1.93
+            },
+            "line13": {
+                "xslp": 0.545,
+                "xdrainh": 0.01,
+                "mann": 0.035,
+                "ksat": 3.2E-03,
+                "mid": "7 Barrenland"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "urban_defaults": {
+        "veg": {
+            "class": "urban",
+            "line5": {
+                "fcan": 1,
+                "lamx": 0
+            },
+            "line6": {
+                "lnz0": 0.3,
+                "lamn": 0
+            },
+            "line7": {
+                "alvc": 0.09,
+                "cmas": 0
+            },
+            "line8": {
+                "alic": 0.16,
+                "root": 0
+            },
+            "line9": {
+                "rsmn": 0,
+                "qa50": 0
+            },
+            "line10": {
+                "vpda": 0,
+                "vpdb": 0
+            },
+            "line11": {
+                "psga": 0,
+                "psgb": 0
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 0,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 3.40
+            },
+            "line13": {
+                "xslp": 0.122,
+                "xdrainh": 0.01,
+                "mann": 0.015,
+                "ksat": 3.6E-03,
+                "mid": "8 Urban"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 23,
+                "sand2": 25,
+                "sand3": 33
+            },
+            "line15": {
+                "clay1": 11,
+                "clay2": 12,
+                "clay3": 15
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 5,
+                "tbar2": 5,
+                "tbar3": 5,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0.2,
+                "thlq2": 0.2,
+                "thlq3": 0.2,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "water_defaults": {
+        "veg": {
+            "class": "water",
+            "line5": {
+                "fcan": 1,
+                "lamx": 0
+            },
+            "line6": {
+                "lnz0": -9.2,
+                "lamn": 0
+            },
+            "line7": {
+                "alvc": 0.08,
+                "cmas": 0
+            },
+            "line8": {
+                "alic": 0.08,
+                "root": 0
+            },
+            "line9": {
+                "rsmn": 0,
+                "qa50": 0
+            },
+            "line10": {
+                "vpda": 0,
+                "vpdb": 0
+            },
+            "line11": {
+                "psga": 0,
+                "psgb": 0
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 0,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 8.8
+            },
+            "line13": {
+                "xslp": 0.0001,
+                "xdrainh": 0.01,
+                "mann": 0.05,
+                "ksat": 2.9E-03,
+                "mid": "9 Water"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": 100,
+                "sand2": 100,
+                "sand3": 100
+            },
+            "line15": {
+                "clay1": 0,
+                "clay2": 0,
+                "clay3": 0
+            },
+            "line16": {
+                "orgm1": 0,
+                "orgm2": 0,
+                "orgm3": 0
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": 4,
+                "tbar2": 2,
+                "tbar3": 1,
+                "tcan": 4,
+                "tsno": 0,
+                "tpnd": 4
+            },
+            "line18": {
+                "thlq1": 0.36,
+                "thlq2": 0.36,
+                "thlq3": 0.36,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
+                "gro": 1
+            }
+        }
+    },
+    "snow_defaults": {
+        "veg": {
+            "class": "snow",
+            "line5": {
+                "fcan": 1,
+                "lamx": 0
+            },
+            "line6": {
+                "lnz0": -6.908,
+                "lamn": 0
+            },
+            "line7": {
+                "alvc": 0.60,
+                "cmas": 0
+            },
+            "line8": {
+                "alic": 0.30,
+                "root": 0
+            },
+            "line9": {
+                "rsmn": 0,
+                "qa50": 0
+            },
+            "line10": {
+                "vpda": 0,
+                "vpdb": 0
+            },
+            "line11": {
+                "psga": 0,
+                "psgb": 0
+            }
+        },
+        "hyd": {
+            "line12": {
+                "drn": 0,
+                "sdep": 4.10,
+                "fare": 1,
+                "dd": 2.9
+            },
+            "line13": {
+                "xslp": 0.357,
+                "xdrainh": 0.01,
+                "mann": 0.01,
+                "ksat": 8.6E-03,
+                "mid": "10 Ice and or snow"
+            }
+        },
+        "soil": {
+            "line14": {
+                "sand1": -4,
+                "sand2": -4,
+                "sand3": -4
+            },
+            "line15": {
+                "clay1": 0,
+                "clay2": 0,
+                "clay3": 0
+            },
+            "line16": {
+                "orgm1": 1,
+                "orgm2": 1,
+                "orgm3": 0.47
+            }
+        },
+        "prog": {
+            "line17": {
+                "tbar1": -4,
+                "tbar2": -2,
+                "tbar3": -1,
+                "tcan": 0,
+                "tsno": 0,
+                "tpnd": 0
+            },
+            "line18": {
+                "thlq1": 0,
+                "thlq2": 0,
+                "thlq3": 0,
+                "thic1": 0,
+                "thic2": 0,
+                "thic3": 0,
+                "zpnd": 0
+            },
+            "line19": {
+                "rcan": 0,
+                "scan": 0,
+                "sno": 0,
+                "albs": 0.5,
+                "rhos": 100,
                 "gro": 1
             }
         }

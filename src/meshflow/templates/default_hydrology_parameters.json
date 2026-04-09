@@ -2,13 +2,13 @@
     "routing": {
         "r2n": 0.4,
         "r1n": 0.02,
-        "pwr": 2.37,
-        "flz": 0.001
+        "pwr": 2.5,
+        "flz": 0.00001
     },
     "hydrology": {
-        "zsnl": 0.05,
-        "zpls": 0.06,
-        "zplg": 0.2,
+        "zsnl": 0.1,
+        "zpls": 0.1,
+        "zplg": 0.1,
         "iwf": 1
     }
 }

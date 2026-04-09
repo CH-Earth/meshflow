@@ -13,21 +13,30 @@ from jinja2 import (
     PackageLoader,
 )
 
+import xarray as xr
+
 # built-in libraries
-import os
 import json
 import copy
+import warnings
 
 from typing import (
     Dict,
     Any,
-    Sequence
+    Sequence,
+    Tuple,
+    Optional,
+    Union
 )
 
 from importlib import resources
 
 # import internal modules
 from .utils import is_int
+from ._default_lists import _class_veg_params
+from ..templates.aliases import normalize_alias
+from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
+
 
 # custom type hints
 try:
@@ -51,7 +60,13 @@ DEFAULT_RUN_OPTIONS = resources.files("meshflow.templates").joinpath("default_in
 DEFAULT_CLASS_LINES = resources.files("meshflow.templates").joinpath("default_CLASS_lines.json")
 DEFAULT_CLASS_TYPES = resources.files("meshflow.templates").joinpath("default_CLASS_types.json")
 
-# global variables and helper functions
+# GWF-inspired default parameter names
+# leading DEFAULT_CLASS_PARAMS to read the default keys
+with open(DEFAULT_CLASS_PARAMS, 'r') as file:
+    _default_class_params = json.load(file)
+DEFAULT_GWF_PARAMS: set = {p.split('_')[0] for p in _default_class_params.keys() if p.endswith('_defaults')}
+
+# helper functions
 def raise_helper(msg):
     """Jinja2 helper function to raise exceptions."""
     raise Exception(msg)
@@ -126,17 +141,21 @@ def render_class_template(
     Exception
         If a Jinja2 template error occurs.
     """
-    # load the default values for each GRU
-    with open(default_params_path, 'r') as file:
-        data = json.load(file)
-    with open(default_header_path, 'r') as file:
-        info = json.load(file)
-    with open(default_case_path, 'r') as file:
-        case = json.load(file)
-    with open(default_lines_path, 'r') as file:
-        gru_lines = json.load(file)
-    with open(default_types_path, 'r') as file:
-        gru_types = json.load(file)
+    # load default CLASS metadata and parameter maps
+    defaults: Dict[str, Any] = {}
+    for key, path in (
+        ("data", default_params_path),
+        ("info", default_header_path),
+        ("case", default_case_path),
+        ("gru_lines", default_lines_path),
+        ("gru_types", default_types_path),
+    ):
+        with open(path, 'r', encoding='utf-8') as fh:
+            defaults[key] = json.load(fh)
+
+    data = defaults["data"]
+    info = defaults["info"]
+    case = defaults["case"]
 
     # populate new dictionary for GRU blocks in the CLASS file
     populating_list = []
@@ -144,37 +163,72 @@ def render_class_template(
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
+    for _, params in class_grus.items():
+        # `gru` is a number of GRU
+        # `params` is the dictionary of parameters entered by the user
+        if isinstance(params, dict):
+            gru_block['vars'].append(_extract_class_params(params, defaults))
 
-    for gru, params in class_grus.items():
-        d = {}
-        for param, param_value in params.items():
-            if param == 'class':
-                d['veg'] = {'class': param_value}
-                continue
-            param_line = gru_lines[param]
-            param_type = gru_types[param]
+        elif isinstance(params, list):
+            # this case only happens when multiple parameter dictionaries
+            # are provided for a single GRU meaning the GRU is classified
+            # as a mixed-vegetated GRU.
+            # ONLY the `veg` key will have a value of a list of dictionaries,
+            # the rest will remain as is.
+            final_params_dict = {'veg': []}
+            for param_dict in params:
+                class_params = _extract_class_params(param_dict, defaults)
+                if 'veg' in class_params.keys():
+                    final_params_dict['veg'].append(class_params['veg'])
+                rest_params = {k: v for k, v in class_params.items() if k != 'veg'}
+                final_params_dict.update(rest_params)
 
-            # add the line number as a key to the parameter type dictionary
-            # if the `param_type` key does not exist, add it first
-            if param_type not in d.keys():
-                d[param_type] = {}
+            gru_block['vars'].append(final_params_dict)
 
-            # ensure the line key exists
-            if f'line{param_line}' not in d[param_type].keys():
-                d[param_type][f'line{param_line}'] = {}  # ensure the key exists
-
-            if param_type in d.keys():
-                d[param_type][f'line{param_line}'].update({param: param_value})
-            else:
-                d[param_type][f'line{param_line}'] = {param: param_value}
-        gru_block['vars'].append(d)
-
-    # deep update GRU blocks
-    for block in gru_block['vars']:
+    # sections to deep update; `veg` is a special section where the type of
+    # vegetation class needs to be specified explicitely, therefore, 
+    # treated separately
+    sections = ['hyd', 'soil', 'prog']
+    # deep update GRU blocks with default parameters
+    for idx, block in enumerate(gru_block['vars']):
+        # make a deep copy of the default data to avoid modifying the original
         new_data = copy.deepcopy(data)
+        # empty deep updated block dictionary
+        it = {}
 
-        # deep merge
-        it = deep_merge(new_data['class_defaults'], block)
+        # let's sort out `veg` section first
+        section = 'veg'
+
+        # select the default parameter set based on the 'class' key in the block
+        # if the 'class' key is not present, use the default parameter set `class_fillers`
+        if isinstance(block.get('veg', None), list):
+            veg = [] # for legibility; not necessary
+            # we are dealing with a mixed-vegetated GRU
+            for veg_block in block['veg']:
+                class_category_name = veg_block['class']
+                normalized_class_category_name = _specify_alias(class_category_name, idx)
+                veg.append(deep_merge(new_data[normalized_class_category_name]['veg'], veg_block))
+        elif isinstance(block.get('veg', None), dict):
+            veg = {} # for legibility; not necessary
+            # we are dealing with a single-vegetated GRU
+            class_category_name = block['veg']['class']
+            normalized_class_category_name = _specify_alias(class_category_name, idx)
+            veg = deep_merge(new_data[normalized_class_category_name]['veg'], block['veg'])
+        else:
+            veg = {} # for legibility; not necessary
+            # if the 'veg' key is not present, we will use the default parameter set `class_fillers`
+            normalized_class_category_name = _specify_alias(None, idx)
+            veg = deep_merge(new_data[normalized_class_category_name]['veg'], {})
+
+        # updating veg section that is deep updated with default parameters
+        it['veg'] = veg
+
+        # now that we have a `normalized_class_category_name` variable, we
+        # can proceed it to deep merge the rest of the sections in the block
+        # with the corresponding default parameter set
+        for section in sections:
+            values = block.get(section, {}) # always a dictionary or None
+            it[section] = deep_merge(new_data[normalized_class_category_name][section], values)
 
         # update the block dictionary
         populating_list.append(it)
@@ -220,9 +274,13 @@ def render_hydrology_template(
     hydrology_params: Dict[str, Any] = {},
     default_params_path: PathLike = DEFAULT_HYDROLOGY_PARAMS, # type: ignore
     template_hydrology_path: PathLike = TEMPLATE_HYDROLOGY, # type: ignore
+    parameters_ds: Optional[xr.Dataset] = None,
+    hru_dim: Optional[str] = 'subbasin',
+    gru_dim: Optional[str] = 'NGRU',
+    return_ds: bool = False,
     *args,
     **kwargs,
-) -> str:
+) -> str | Tuple[str, xr.Dataset]:
     """
     Render a hydrology parameters INI template using Jinja2.
 
@@ -236,11 +294,28 @@ def render_hydrology_template(
         Path to the default hydrology parameters JSON file.
     template_hydrology_path : PathLike, optional
         Path to the Jinja2 template for hydrology parameters.
+    parameters_ds : xarray.Dataset, optional
+        An optional xarray.Dataset containing hydrology-specific parameters
+        that may be needed for rendering the template. If not provided,
+        it will be generated based on the routing parameters if necessary.
+    hru_dim : str, optional
+        Name of the dimension representing HRUs (or subbasins) in
+        the parameters dataset.
+    gru_dim : str, optional
+        Name of the dimension representing GRUs in the parameters dataset.
+    return_ds : bool, optional
+        Whether to return the xarray.Dataset containing hydrology-specific
+        parameters along with the rendered template. If True, the function
+        will return a tuple of (rendered_template, parameters_ds). If False,
+        it will return only the rendered template.
 
     Returns
     -------
     str
         Rendered hydrology template as a string.
+    xr.Dataset, optional
+        If `return_ds` is True, also return the xarray.Dataset containing
+        hydrology-specific parameters.
 
     Raises
     ------
@@ -296,6 +371,77 @@ def render_hydrology_template(
     if 'process_details' in kwargs and kwargs.get('process_details') is not None:
         additional_kwargs = kwargs.get('process_details')
 
+    # if addtional_kwargs is not empty, we need to determine whether
+    # a MESH_parameters.nc file is necessary or not.
+    #   If necessary, we will have to generate an xarray.Dataset and 
+    #   fit the hydrology specific parameters inside; we also need to
+    #   remove these values from the MESH_parameters_hydrology.ini file
+    #   to avoid redundancy and potential conflicts.
+    #   Otherwise, we will just proceed with rendering the template as is.
+    if additional_kwargs:
+        # if only `pwr` and `flz` are provided in additional_kwargs, then
+        # we need to adjust them inside the `routing_params` to assure that
+        # the number of elements matches the number of subbasins, rather than
+        # the number of river classes in the normal hydrology parameters.
+        # this case typically happens when no routing mechanism is turned on
+        # inside MESH.
+        if set(additional_kwargs['routing']) == {'pwr', 'flz'}:
+            # iterate over each routing block in `routing_params`
+            # remove any keys other than `pwr` and `flz`
+            for routing_block in routing_params:
+                keys_to_remove = set(routing_block.keys()) - {'pwr', 'flz'}
+                if keys_to_remove:
+                    for key in keys_to_remove:
+                        routing_block.pop(key, None)
+            # we will need to find the number of subbasins (in the vector
+            # case) to determine the dimensions of the xarray.Dataset. 
+            # the computational_units dictionary should have the necessary
+            # information for this. THe specific key would be 'subbasin'.
+            try:
+                num_subbasins: int = int(len(parameters_ds[hru_dim]))
+            except Exception as e:
+                raise Exception("Error determining the number of subbasins"
+                                " from `computational_units`. Use `subbasin`"
+                                " as the key: " + str(e))
+
+            # after extracting the number of basins, one has to make sure
+            # the `pwr` and `flz` parameters in the `routing_params`
+            # are lists of the same length as the number of subbasins.
+            if len(routing_params) != num_subbasins:
+                warnings.warn("Since only `pwr` and `flz` parameters are available in "
+                              "routing scheme (representing baseflow), the number of routing "
+                              "blocks in `routing_params` should match the "
+                              "number of subbasins. Therefore, adjusting the number of"
+                              f" routing blocks to {num_subbasins}.")
+                # repeating the last element of `routing_params` to match
+                # the number of subbasins
+                last_routing_block = routing_params[-1]
+                while len(routing_params) < num_subbasins:
+                    routing_params.append(copy.deepcopy(last_routing_block)) # type: ignore
+
+            # now, we can adjust the xarray.Dataset for MESH_parameters.nc
+            parameters = {
+                var: {
+                    'dims': hru_dim,
+                    'data': [routing_block.get(var) for routing_block in routing_params], # type: ignore
+                    'attrs': LOCAL_ATTRS.get(var, {}),
+                } for var in additional_kwargs['routing']
+            }
+            dims = {hru_dim: num_subbasins}
+            coords = {
+                hru_dim: {
+                    "dims": hru_dim,
+                    "data": parameters_ds[hru_dim].data, # type: ignore
+                },
+            }
+            ds = xr.Dataset.from_dict({
+                'dims': dims,
+                'coords': coords,
+                'data_vars': parameters,
+            })
+            # update the `parameters_ds` variable to be passed to the template
+            parameters_ds.update(ds) # type: xarray.Dataset
+
     # create content
     content = template.render(
         routing_dict=routing_params,
@@ -303,7 +449,13 @@ def render_hydrology_template(
         **additional_kwargs,
     )
 
-    return content if content.endswith('\n') else content + '\n'
+    # assuring the content has a newline at the end for better formatting of the INI file
+    content = content if content.endswith('\n') else content + '\n'
+
+    if return_ds:
+        return content, parameters_ds # type: ignore
+
+    return content
 
 def render_run_options_template(
     run_options_dict: Dict[str, Any],
@@ -342,3 +494,111 @@ def render_run_options_template(
         return content
     else:
         return content + '\n'
+
+def _extract_class_params(
+    class_dict: Dict[str, Any],
+    defaults: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Extract CLASS parameters from a given dictionary and return a new
+    dictionary with the parameters organized by their types and line numbers.
+
+    Parameters
+    ----------
+    class_dict : dict
+        Dictionary containing CLASS parameters, where keys are parameter names
+        and values are the corresponding parameter values.
+    defaults : dict
+        Dictionary containing default CLASS lines and types, with keys
+        'gru_lines' and 'gru_types' mapping parameter names to their line numbers
+        and types.
+
+    Returns
+    -------
+    dict
+        A new dictionary with CLASS parameters organized by their types and
+        line numbers.
+
+    Raises
+    ------
+    ValueError
+        If the input `class_dict` is not a dictionary.
+    """
+    # check the dtype
+    if not isinstance(class_dict, dict):
+        raise ValueError("class parameters must be be provided through a dictionary")
+
+    # load default CLASS lines and types
+    gru_lines = defaults["gru_lines"]
+    gru_types = defaults["gru_types"]
+
+    # extract parameters and organize them by type and line number
+    extracted_params = {}
+    for param, param_value in class_dict.items():
+        if param == 'class':
+            extracted_params['veg'] = {'class': param_value}
+            continue
+        param_line = gru_lines[param]
+        param_type = gru_types[param]
+
+        # add the line number as a key to the parameter type dictionary
+        # if the `param_type` key does not exist, add it first
+        if param_type not in extracted_params.keys():
+            extracted_params[param_type] = {}
+
+        # ensure the line key exists
+        if f'line{param_line}' not in extracted_params[param_type].keys():
+            extracted_params[param_type][f'line{param_line}'] = {}  # ensure the key exists
+
+        if param_type in extracted_params.keys():
+            extracted_params[param_type][f'line{param_line}'].update({param: param_value})
+        else:
+            extracted_params[param_type][f'line{param_line}'] = {param: param_value}
+
+    return extracted_params
+
+def _specify_alias(
+    _class_category_name: str,
+    idx: Optional[int] = None,
+) -> str:
+    """
+    Specify the normalized alias for a given class category name.
+
+    Parameters
+    ----------
+    _class_category_name : str
+        The original class category name.
+
+    Returns
+    -------
+    str
+        The normalized class category name.
+    """
+    
+    if _class_category_name is not None:
+        # normalize the class category name using aliases
+        normalized_class_category_name = normalize_alias(_class_category_name)
+
+        # if the normalized class category name is not in the default data, raise an error
+        if normalized_class_category_name not in DEFAULT_GWF_PARAMS:
+            normalized_class_category_name = 'class_fillers'
+        else:
+            normalized_class_category_name += '_defaults'
+    else:
+        normalized_class_category_name = 'class_fillers'
+
+    # warnings messages
+    if normalized_class_category_name == 'class_fillers':
+        warnings.warn(f"Using the default parameter set for `class_fillers` "
+                        "for the GRU block with class assigned as "
+                        f"{_class_category_name} and GRU location {idx}. "
+                        "Parameter values may not have sound "
+                        "physical meanings.")
+    elif normalized_class_category_name != 'class_fillers':
+        warnings.warn("Using the Global Water Futures (GWF) default "
+                        f"parameter set for class category `{_class_category_name}`"
+                        f" with GRU location {idx}."
+                        " The parameter set assigned is based on GWF's "
+                        f"`{normalized_class_category_name}` category.")
+
+    return normalized_class_category_name
