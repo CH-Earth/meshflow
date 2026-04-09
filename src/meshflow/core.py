@@ -386,6 +386,17 @@ class MESHWorkflow(object):
         # landcover specs
         self.landcover_classes = landcover_classes
 
+        # If settings are provided as a dictionary
+        assert isinstance(settings, dict), "`settings` must be a `dict`"
+        self.settings = settings
+
+        # landcover mode: 'fractional' (default) or 'majority'
+        _lc_mode = self.settings.get('core', {}).get('landcover_mode', 'fractional')
+        if _lc_mode not in ('fractional', 'majority', 'mode'):
+            raise ValueError("`settings['core']['landcover_mode']` must be "
+                             "either 'fractional' or 'majority' (or 'mode')")
+        self.landcover_mode = _lc_mode
+
         # assing inputs read from files
         self._read_input_files()
 
@@ -398,10 +409,6 @@ class MESHWorkflow(object):
         # MESH-specific variables
         self.rank_str = 'Rank'
         self.next_str = 'Next'
-
-        # If settings are provided as a dictionary
-        assert isinstance(settings, dict), "`settings` must be a `dict`"
-        self.settings = settings
 
     def _read_input_files(self):
         """
@@ -441,11 +448,19 @@ class MESHWorkflow(object):
         """
         Reads and returns the landcover DataFrame for catchments present in the input domain.
 
+        When ``self.landcover_mode`` is ``'fractional'``, all ``frac_`` columns
+        are returned as-is. When ``'majority'`` or ``'mode'``, each subbasin
+        is assigned a single GRU corresponding to its dominant landcover
+        class (fraction = 1.0). The dominant class is determined either from
+        a ``majority`` / ``mode`` column in the CSV (if present and no
+        ``frac_`` columns exist) or by computing ``idxmax`` across the
+        ``frac_`` columns.
+
         Returns
         -------
         pd.DataFrame
-            Landcover fractions for each catchment, filtered to include only those
-            present in the catchment file and only columns starting with 'frac_'.
+            Landcover fractions for each catchment, with columns named
+            ``frac_<class_id>``.
         """
 
         # [FIXME]: This needs to be flexible in future versions
@@ -478,7 +493,53 @@ class MESHWorkflow(object):
         _rows = [row for row in _lc_df.index if _seg_ids.isin([row]).any()]
         _cols = [col for col in _lc_df.columns if
                  col.startswith(_lc_prefix)]
- 
+
+        warnings.warn(
+            f"Landcover mode is set to '{self.landcover_mode}'. "
+            f"GRUs will be defined using "
+            f"{'fractional landcover columns' if self.landcover_mode == 'fractional' else 'the dominant (majority) landcover class per subbasin'}.",
+            UserWarning,
+        )
+
+        if self.landcover_mode in ('majority', 'mode'):
+            # Case 1: CSV has only a 'majority' or 'mode' column (no frac_ columns)
+            if not _cols:
+                _mode_col = None
+                for candidate in ('majority', 'mode'):
+                    if candidate in _lc_df.columns:
+                        _mode_col = candidate
+                        break
+                if _mode_col is None:
+                    raise ValueError(
+                        "landcover_mode is set to 'majority'/'mode' but the "
+                        "CSV has neither 'frac_' columns nor a 'majority'/"
+                        "'mode' column"
+                    )
+                # read the dominant class per subbasin from the column
+                dominant = _lc_df.loc[_rows, _mode_col]
+            else:
+                # Case 2: CSV has frac_ columns — compute dominant from them
+                _lc_filtered = _lc_df.loc[_rows, _cols].copy()
+                dominant = _lc_filtered.idxmax(axis=1)
+
+            # normalize dominant values to 'frac_<id>' format
+            dominant = dominant.apply(
+                lambda v: v if str(v).startswith(_lc_prefix)
+                else f'{_lc_prefix}{v}'
+            )
+
+            # get unique dominant classes
+            unique_classes = sorted(dominant.unique())
+
+            # build new DataFrame: 1.0 for dominant class, 0.0 otherwise
+            _lc_majority = pd.DataFrame(
+                0.0, index=dominant.index, columns=unique_classes,
+            )
+            for idx, dom_class in dominant.items():
+                _lc_majority.loc[idx, dom_class] = 1.0
+
+            return _lc_majority
+
         # return a copy of the dataframe including hrus available in the
         # input domain and only fractions
         return _lc_df.loc[_rows, _cols].copy()

@@ -578,6 +578,7 @@ For example:
        "forcing_time_zone": "UTC",  # Time zone of forcing data
        # "model_time_zone": "America/Edmonton",  # Optional: time zone for the model
        "output_path": "results",  # Path to save model outputs relative to model instance's path
+       "landcover_mode": "fractional",  # Method for defining GRUs: "fractional" or "majority"
    }
 
 
@@ -597,6 +598,17 @@ For example:
   of the subbasins.
 
 - ``output_path``: (Optional) Path to save model outputs. Default value is ``results``.
+
+- ``landcover_mode``: (Optional) Method for defining GRUs from landcover data.
+  ``"fractional"`` (default) uses all fractional landcover columns as-is, where
+  each subbasin can have multiple GRUs weighted by area fraction.
+  ``"majority"`` (or ``"mode"``) assigns each subbasin a single GRU
+  corresponding to its dominant landcover class (fraction set to 1.0). When
+  set to ``"majority"`` or ``"mode"``, the input CSV can either contain
+  ``frac_`` columns (the dominant class is computed automatically) or a single
+  ``majority`` / ``mode`` column with the dominant class ID per subbasin.
+  Multiple subbasins may have different dominant classes, so the total number
+  of GRUs can still be greater than one.
 
 
 Class Parameters
