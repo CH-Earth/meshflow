@@ -163,11 +163,13 @@ def render_class_template(
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
 
-    for _, params in class_grus.items():
-        # `gru` is a number of GRU
+    for gru_id, params in class_grus.items():
+        # `gru_id` is the numeric GRU identifier (landcover class ID)
         # `params` is the dictionary of parameters entered by the user
         if isinstance(params, dict):
-            gru_block['vars'].append(_extract_class_params(params, defaults))
+            extracted = _extract_class_params(params, defaults)
+            extracted['gru_id'] = gru_id
+            gru_block['vars'].append(extracted)
 
         elif isinstance(params, list):
             # this case only happens when multiple parameter dictionaries
@@ -183,6 +185,7 @@ def render_class_template(
                 rest_params = {k: v for k, v in class_params.items() if k != 'veg'}
                 final_params_dict.update(rest_params)
 
+            final_params_dict['gru_id'] = gru_id
             gru_block['vars'].append(final_params_dict)
 
     # sections to deep update; `veg` is a special section where the type of
@@ -229,6 +232,9 @@ def render_class_template(
         for section in sections:
             values = block.get(section, {}) # always a dictionary or None
             it[section] = deep_merge(new_data[normalized_class_category_name][section], values)
+
+        # preserve the GRU ID for template rendering
+        it['gru_id'] = block.get('gru_id')
 
         # update the block dictionary
         populating_list.append(it)
