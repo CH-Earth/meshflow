@@ -164,3 +164,4 @@ cython_debug/
 
 # Output stuff
 outputs/
+outputs_grouped/
