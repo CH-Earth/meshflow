@@ -731,8 +731,30 @@ to land cover classes the ``CLASS`` model accepts.
    the accurate values for each GRU class.
 
 .. note::
-   A list of CLASS parameters can be found in the
-   `MESH documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini>`_.
+    A list of CLASS parameters can be found in the
+    `MESH documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390222/MESH_parameters_CLASS.ini>`_.
+
+.. note::
+    **Grouping GRUs.**  You may assign the same parameters to multiple GRUs
+    at once by using a tuple as the dictionary key.  This avoids
+    repeating identical blocks and guarantees the grouped GRUs follow the
+    same parameterization while still being described separately in the model
+    setup.
+
+    .. code-block:: python
+
+       >>> "class_params": {
+       ...     "grus": {
+       ...         (1, 4, 17): {
+       ...             "class": "needleleaf",
+       ...             "LNZ0": -1.4,
+       ...         },
+       ...     },
+       ... }
+
+    When writing configuration in JSON, keys must be strings, so you can
+    use a string representation of a tuple (e.g., ``"(1, 4, 17)"`` or
+    ``"[1, 4, 17]"``) to achieve the same grouping.
 
 
 Hydrology Parameters
@@ -779,12 +801,60 @@ For example:
   ``ZSNL`` can be set for a specific GRU class.
 
 .. note::
-   The available hydrological and routing parameters depend on the
-   model configuration and should be set according to your simulation
-   requirements. If a parameter is not provided, a default value may
-   be used, which may not be optimal for your domain. Users are encouraged
-   to consult the `model documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390211/MESH_parameters_hydrology.ini>`_
-   for a full list of available hydrology and routing parameters.
+    The available hydrological and routing parameters depend on the
+    model configuration and should be set according to your simulation
+    requirements. If a parameter is not provided, a default value may
+    be used, which may not be optimal for your domain. Users are encouraged
+    to consult the `model documentation <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390211/MESH_parameters_hydrology.ini>`_
+    for a full list of available hydrology and routing parameters.
+
+.. note::
+    **Grouping GRUs in hydrology parameters.**  Just as with ``class_params``,
+    you can group GRU indices in ``hydrology_params['hydrology']`` using a
+    tuple key so that multiple GRUs share identical parameters:
+
+    .. code-block:: python
+
+       >>> "hydrology_params": {
+       ...     "hydrology": {
+       ...         (1, 4, 17): {
+       ...             "ZSNL": 0.5,
+       ...         },
+       ...     },
+       ... }
+
+    When writing configuration in JSON, keys must be strings, so you can
+    use a string representation of a tuple (e.g., ``"(1, 4, 17)"`` or
+    ``"[1, 4, 17]"``) to achieve the same grouping.
+
+.. note::
+    **Grouping routing classes.**  ``routing`` traditionally accepts a list
+    of dictionaries (one per river class, in order).  You may now also supply
+    a dictionary where keys are river-class indices and values are parameter
+    dictionaries.  Tuple keys group multiple classes together:
+
+    .. code-block:: python
+
+       >>> "hydrology_params": {
+       ...     "routing": {
+       ...         (0, 1): {"R2N": 0.3},
+       ...         2: {"R2N": 0.5},
+       ...     },
+       ... }
+
+    This is equivalent to the list form:
+
+    .. code-block:: python
+
+       >>> "routing": [
+       ...     {"R2N": 0.3},
+       ...     {"R2N": 0.3},
+       ...     {"R2N": 0.5},
+       ... ]
+
+    When writing configuration in JSON, keys must be strings, so you can
+    use a string representation of a tuple (e.g., ``"(0, 1)"`` or
+    ``"[0, 1]"``) to achieve the same grouping.
 
 
 Run Options

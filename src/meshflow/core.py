@@ -57,6 +57,7 @@ from ._default_dicts import (
 from . import utility
 
 from .utility import parameters_local_attrs as DEFAULT_PARAMTETERS_LOCAL_ATTRS
+from .utility.utils import expand_grouped_keys
 from .templates.aliases import normalize_alias
 
 # custom type hints
@@ -1325,7 +1326,9 @@ class MESHWorkflow(object):
 
         # update the class_gru dictionary with user inputs
         if 'class_params' in self.settings and 'grus' in self.settings['class_params']:
-            for gru, _class_dict in self.settings['class_params']['grus'].items():
+            # expand grouped keys (e.g., (1, 4, 17) -> individual entries)
+            class_grus_expanded = expand_grouped_keys(self.settings['class_params']['grus'])
+            for gru, _class_dict in class_grus_expanded.items():
                 if gru in class_gru:
                     # if a list of CLASS parameters are provided, the GRU is then `mixed`
                     # `_class_dict` naming is a misnomer; it can be a list or dictionary
@@ -1438,7 +1441,18 @@ class MESHWorkflow(object):
                 'routing' in self.settings['hydrology_params'] and
                 len(self.settings['hydrology_params']['routing']) > 0
             ):
-                for iak_class, r_dict in enumerate(self.settings['hydrology_params']['routing']):
+                routing_input = self.settings['hydrology_params']['routing']
+                # support dict format with grouped keys (e.g., (0, 1): {...})
+                if isinstance(routing_input, dict):
+                    routing_expanded = expand_grouped_keys(routing_input)
+                    # sort by integer river-class index and convert to list
+                    max_idx = max(int(k) for k in routing_expanded.keys())
+                    routing_list = [{} for _ in range(max_idx + 1)]
+                    for idx, params in routing_expanded.items():
+                        routing_list[int(idx)] = params
+                    routing_input = routing_list
+                # iterate over routing blocks
+                for iak_class, r_dict in enumerate(routing_input):
                     # check if the class is in the routing_dict
                     if iak_class < len(routing_dict):
                         # assure that the params keys are lower-cased
@@ -1453,7 +1467,11 @@ class MESHWorkflow(object):
 
             # update the hydrology dictionary
             if 'hydrology' in self.settings['hydrology_params']:
-                for gru, params in self.settings['hydrology_params']['hydrology'].items():
+                # expand grouped keys (e.g., (1, 4, 17) -> individual entries)
+                hydrology_expanded = expand_grouped_keys(
+                    self.settings['hydrology_params']['hydrology']
+                )
+                for gru, params in hydrology_expanded.items():
                     # check if gru is in the hydrology_dict
                     if gru in hydrology_dict:
                         # assure that the params keys are lower-cased
