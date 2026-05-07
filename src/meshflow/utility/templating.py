@@ -32,7 +32,7 @@ from typing import (
 from importlib import resources
 
 # import internal modules
-from .utils import is_int
+from .utils import is_int, expand_grouped_keys
 from ._default_lists import _class_veg_params
 from ..templates.aliases import normalize_alias
 from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
@@ -162,6 +162,9 @@ def render_class_template(
 
     # create a dictionary for GRU blocks
     gru_block = {"vars": []}
+
+    # expand grouped keys (e.g., (1, 4, 17) -> individual entries)
+    class_grus = expand_grouped_keys(class_grus)
 
     for gru_id, params in class_grus.items():
         # `gru_id` is the numeric GRU identifier (landcover class ID)
@@ -338,6 +341,15 @@ def render_hydrology_template(
     routing_defaults = data.get('routing')
     hydrology_defaults = data.get('hydrology')
 
+    # support dict format with grouped keys (e.g., (0, 1): {...})
+    if isinstance(routing_params, dict):
+        routing_expanded = expand_grouped_keys(routing_params)
+        max_idx = max(int(k) for k in routing_expanded.keys())
+        routing_list = [{} for _ in range(max_idx + 1)]
+        for idx, params in routing_expanded.items():
+            routing_list[int(idx)] = params
+        routing_params = routing_list
+
     # deep update routing block
     for idx, routing_block in enumerate(routing_params):
         defaults = copy.deepcopy(routing_defaults)
@@ -347,6 +359,9 @@ def render_hydrology_template(
 
         # update the dict (list of dicts)
         routing_params[idx].update(defaults)
+
+    # expand grouped keys for hydrology (e.g., (1, 4, 17) -> individual entries)
+    hydrology_params = expand_grouped_keys(hydrology_params)
 
     # deep update gru block
     for gru, gru_hydro_params in hydrology_params.items():
