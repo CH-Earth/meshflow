@@ -92,5 +92,6 @@ default_attrs = {
         'longitude_of_prime_meridian': 0.,
         'semi_major_axis': 6378137.0,
         'inverse_flattening': 298.257223563,
+        'units': '1',
     },
 }

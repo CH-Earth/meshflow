@@ -2164,6 +2164,12 @@ class MESHWorkflow(object):
         including adding `crs` variables, adding coordinates, and adding
         necessary default variable attributes
         """
+        # Remove any pre-existing lat/lon variables that would conflict with
+        # self._coords_ds, ensuring the domain coordinates are authoritative.
+        for v in ['lat', 'lon', 'latitude', 'longitude']:
+            if v in ds:
+                ds = ds.drop_vars(v)
+
         # fix coordinates of the forcing and ddb objects
         ds = xr.combine_by_coords([self._coords_ds, ds])
 
