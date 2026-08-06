@@ -21,6 +21,7 @@ mesh_drainage_database_units_default = {
     "next": "dimensionless",
     "gru": "dimensionless",
     "landclass": "dimensionless",
+    "ireach": "dimensionless"
 }
 
 # Minimum values for drainage database parameters
@@ -43,7 +44,9 @@ mesh_drainage_database_names_default = {
     "rank": "Rank",
     "next": "Next",
     "subbasin_area": "GridArea",
+    "lake_area": "lake_area",
     "landclass": "GRU",
     'lat': 'lat',
     'lon': 'lon',
+    'ireach': 'IREACH',
 }

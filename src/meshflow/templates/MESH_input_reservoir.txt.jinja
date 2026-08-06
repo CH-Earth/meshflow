@@ -1,0 +1,26 @@
+{#
+    MESH_input_reservoir.txt
+    ========================
+    Fortran fixed-width reservoir input for Standalone MESH. Fields use MESH
+    format widths (i5, f7.1, g10.3, 25x, a12, i2) with single spaces between
+    the location and coefficient columns.
+
+    Header (line 1): WF_NORESV, WF_NREL, WF_KTR  (each i5)
+    Lake rows: WF_IRES, WF_JRES, WF_B1, WF_B2, (25x), WF_RESNAME (a12), WF_RES (i2)
+
+    location_flag == 0  ->  i5 integer locations (minutes)
+    location_flag == 1  ->  f7.1 real locations (minutes)
+
+    https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390254/MESH_input_reservoir.txt
+#}
+{% macro format_location(value, location_flag) -%}
+{%- if location_flag == 1 -%}
+{{- value | fortran_f7_1 -}}
+{%- else -%}
+{{- value | round | int | fortran_i5 -}}
+{%- endif -%}
+{%- endmacro -%}
+{{ n_reservoirs | fortran_i5 }} {{ 0 | fortran_i5 }} {{ 0 | fortran_i5 }}
+{% for reservoir in reservoirs -%}
+{{ format_location(reservoir.lat_min, location_flag) }} {{ format_location(reservoir.lon_min, location_flag) }} {{ reservoir.b1 | fortran_g10_3 }} {{ reservoir.b2 | fortran_g10_3 }}{{ " " * 25 }}{{ reservoir.name | mesh_reservoir_name | fortran_a12 }} {{ reservoir.ireach_num | fortran_i2 }}
+{% endfor %}

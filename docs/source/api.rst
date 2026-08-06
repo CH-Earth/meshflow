@@ -96,3 +96,29 @@ Functions for generating MESH configuration files from templates.
    :members:
    :show-inheritance:
    :no-index:
+
+Reservoir Input
+~~~~~~~~~~~~~~~
+
+Functions for preparing ``MESH_input_reservoir.txt`` and
+``MESH_input_reservoir.tb0``.
+
+.. currentmodule:: meshflow.utility.reservoir
+
+.. autosummary::
+   :toctree: generated/
+
+   read_reservoir_coefficients
+   coefficients_to_reservoir_params
+   reservoir_params_to_coefficients
+   merge_reservoir_params
+   normalize_reservoir_param_entry
+   seed_reservoir_params_from_catchments
+   prepare_reservoir_context
+   prepare_reservoir_inflows_context
+   parse_reservoir_coefficient_link
+
+.. automodule:: meshflow.utility.reservoir
+   :members:
+   :show-inheritance:
+   :no-index:

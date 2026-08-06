@@ -61,6 +61,11 @@ ddb_local_attrs_default = {
         'coordinates': 'lon lat time',
         'grid_mapping': 'crs',
     },
+    'IREACH': {
+        'long_name': 'Lake Number',
+        'grid_mapping': 'crs',
+        'coordinates': 'lon lat time'
+    },
 }
 
 

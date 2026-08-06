@@ -34,6 +34,7 @@
             },
             "etc": {
                 "TIMESTEPFLAG": "",
+                "RESERVOIRFILEFLAG": "txt",
                 "INPUTPARAMSFORMFLAG": "txt",
                 "SHDFILEFLAG": "nc_subbasin pad_outlets",
                 "FROZENSOILINFILFLAG": 0,

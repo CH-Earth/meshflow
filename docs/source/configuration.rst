@@ -269,7 +269,52 @@ of how to load the catchment data:
    ...       ...         ...        ...                                 ...
    [169 rows x 4 columns]
 
-Typically, no other information is required in the ``cat`` object.
+Typically, no other information is required in the ``cat`` object. When
+simulating lakes or reservoirs, additional catchment attributes are mapped
+through ``ddb_vars`` (see :ref:`reservoir-settings`).
+
+
+Lakes and Reservoirs
+^^^^^^^^^^^^^^^^^^^^
+
+To include lakes in a MESH setup, the catchment shapefile should contain a
+column that identifies lake subbasins. Non-lake values may be ``0`` or
+``-1``; any other value is treated as a lake (for example ``1``/``0`` flags,
+positive lake areas, or lake IDs with ``-1`` for non-lakes). Map that column
+through ``ddb_vars`` using the ``ireach`` key. ``MESHFlow`` computes the
+``IREACH`` index on each lake subbasin during ``init_ddb()`` and writes it
+to the drainage database.
+
+Optional catchment columns for reservoir workflows:
+
+- ``ireach``: Lake indicator column on the catchment shapefile. Required
+  when generating reservoir input files. Accepts binary flags, lake area
+  (``0`` = non-lake), or lake IDs (``-1`` / ``0`` = non-lake).
+
+- ``reservoir_id``: Reservoir identifier column on the catchment shapefile.
+  Used by default to join power-curve coefficients from a parameter CSV to
+  each lake.
+
+- ``lake_area``: Lake reach area in square metres. Used in
+  ``MESH_input_reservoir.tb0`` when ``RESERVOIRFILEFLAG`` is ``tb0``. If
+  omitted, the subbasin ``GridArea`` is used.
+
+Example:
+
+.. code-block:: python
+   :linenos:
+
+   >>> ddb_vars = {
+   ...     "river_length": "lengthkm",
+   ...     "river_slope": "slope",
+   ...     "river_class": "order",
+   ...     "ireach": "is_lakes",
+   ...     "reservoir_id": "res_id",
+   ...     "lake_area": "lake_area_m2",
+   ... }
+
+See :ref:`reservoir-settings` for coefficient files, run flags, and output
+file options.
 
 
 Forcing Data
@@ -540,6 +585,11 @@ Example structure:
        "run_options": {...},
    }
 
+The ``core`` section may also include ``reservoir_coefficients`` and
+``reservoir_coefficient_columns`` when lakes are enabled. Calibratable
+coefficients live under the top-level ``reservoir_params`` key (parallel to
+``class_params``). See :ref:`reservoir-settings`.
+
 Therefore, the ``settings`` parameter consists of the following sections:
 
 - ``core``: Controls the main simulation specifics, such as time periods,
@@ -609,6 +659,274 @@ For example:
   ``majority`` / ``mode`` column with the dominant class ID per subbasin.
   Multiple subbasins may have different dominant classes, so the total number
   of GRUs can still be greater than one.
+
+
+.. _reservoir-settings:
+
+Reservoir Settings
+^^^^^^^^^^^^^^^^^^
+
+``MESHFlow`` can generate ``MESH_input_reservoir.txt`` and, optionally,
+``MESH_input_reservoir.tb0`` for natural lakes and reservoirs. These files
+are written automatically when saving a model setup if lakes are enabled.
+
+Overview
+~~~~~~~~
+
+Reservoir support requires:
+
+1. A lake flag on the catchment shapefile, mapped with ``ddb_vars['ireach']``.
+2. ``RESERVOIRFLAG`` set to ``1`` or ``3`` in ``run_options`` (see
+   :ref:`run-options-reservoir`).
+3. Optionally, initial power-curve coefficients from a CSV and/or a
+   ``reservoir_params`` dictionary (same role as ``class_params`` for CLASS).
+
+``MESHFlow`` identifies lakes from the catchment data, assigns ``IREACH``
+numbers in downstream order, and writes reservoir locations from catchment
+centroids. Power-curve coefficients ``WF_B1`` and ``WF_B2`` are stored in
+``self.reservoir_dict`` so they can be adjusted during calibration. A CSV
+under ``core.reservoir_coefficients`` is only an optional seed (or a way to
+supply known parameters when you are not calibrating).
+
+Output files
+~~~~~~~~~~~~
+
+- ``MESH_input_reservoir.txt``: Fortran-style reservoir input used by
+  Standalone MESH. Written when reservoirs are enabled and
+  ``RESERVOIRFILEFLAG`` is ``txt`` (default). When reservoirs are disabled
+  (``RESERVOIRFLAG`` missing or ``0``), a blank ``0 0 0`` stub is written
+  instead.
+
+- ``MESH_input_reservoir.tb0``: Reservoir input file with lake
+  metadata (names, locations, coefficients, reach areas). Written when
+  reservoirs are enabled and ``RESERVOIRFILEFLAG`` is ``tb0``. The blank
+  ``.txt`` stub is not written in this case.
+
+
+Run flags
+~~~~~~~~~
+
+Enable reservoirs in ``settings['run_options']['flags']``. The Bow River
+example uses the ``etc`` flag group:
+
+.. code-block:: python
+   :linenos:
+
+   "run_options": {
+       "flags": {
+           "etc": {
+               "RESERVOIRFLAG": 1,
+               "RESERVOIRFILEFLAG": "tb0",
+               "LOCATIONFLAG": 0,
+           },
+       },
+   }
+
+- ``RESERVOIRFLAG``: ``1`` uses power-curve coefficients from
+  ``reservoir_dict`` (seeded by CSV and/or ``reservoir_params``); ``3``
+  writes the same reservoir file but sets ``WF_B1`` and ``WF_B2`` to zero.
+  Omit or set to ``0`` when no lakes are simulated (writes a blank
+  ``MESH_input_reservoir.txt`` stub).
+
+- ``RESERVOIRFILEFLAG``: ``txt`` (default) or ``tb0``.
+
+- ``LOCATIONFLAG``: ``0`` writes integer minute locations; ``1`` writes real
+  minute locations with one decimal place.
+
+Calibratable parameter dictionary
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Like ``class_params`` / ``self.class_dict``, reservoir coefficients live in a
+mutable dictionary exposed as ``self.reservoir_dict`` after
+``init_reservoir()`` (also called from ``run()``):
+
+.. code-block:: python
+   :linenos:
+
+   "reservoir_params": {
+       "link": "reservoir_id",  # optional; or "basin_id"
+       "reservoirs": {
+           "R-101": {"b1": 0.15, "b2": 0.25, "name": "Ghost Lake"},
+           "R-102": {"b1": 1.0, "b2": 2.0},
+           # optional grouping, same idea as CLASS grus:
+           # ("R-103", "R-104"): {"b1": 0.1, "b2": 0.2},
+       },
+   }
+
+After the workflow builds the dict (from lake catchments, optional CSV, then
+this overlay), calibrate by mutating values in memory, re-rendering via
+``render_configs()``, then saving — the same path used for CLASS and
+hydrology:
+
+.. code-block:: python
+   :linenos:
+
+   >>> workflow.run(save_path="mesh_setup")
+   >>> workflow.reservoir_dict["reservoirs"]["R-101"]["b1"] = 0.18
+   >>> workflow.reservoir_dict["reservoirs"]["R-101"]["b2"] = 0.22
+   >>> workflow.render_configs(
+   ...     class_dicts=workflow.class_dict,
+   ...     hydrology_dicts=workflow.hydrology_dict,
+   ...     options_dict=workflow.options_dict,
+   ...     reservoir_dicts=workflow.reservoir_dict,
+   ...     return_texts=True,
+   ...     return_ds=True,
+   ... )
+   >>> workflow.save("mesh_setup")  # writes the already-rendered strings
+
+Pass ``rebuild=True`` to ``init_reservoir()`` if you need to reconstruct the
+dict from settings/CSV and discard in-memory edits.
+
+Coefficient CSV (optional seed)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Provide a CSV path in ``settings['core']`` when you already know parameters or
+want initial guesses for calibration. CSV values are loaded first; matching
+IDs in ``reservoir_params['reservoirs']`` override them:
+
+.. code-block:: python
+   :linenos:
+
+   "core": {
+       "reservoir_coefficients": "path/to/reservoir_coefficients.csv",
+       "reservoir_coefficient_columns": {
+           "reservoir_id": "res_id",
+           "name_col": "name",
+           "b1_col": "b1",
+           "b2_col": "b2",
+       },
+   }
+
+The CSV should contain at minimum:
+
+- An ID column (see linking below).
+- ``b1`` and ``b2`` power-curve coefficients.
+- An optional ``name`` column for the reservoir label in output files.
+
+When no name is provided, ``MESHFlow`` uses the reservoir ID (or basin ID
+when linking on ``basin_id``) as the default name.
+
+Example CSV:
+
+.. code-block:: text
+
+   res_id,name,b1,b2
+   R-101,Ghost Lake,0.15,0.25
+   R-102,Upper Lake,1.0,2.0
+
+Linking coefficients to catchments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, coefficients are joined on ``reservoir_id``. You specify the
+column names in two places:
+
+**1. Catchment shapefile** — map the shapefile column in ``ddb_vars``:
+
+.. code-block:: python
+
+   "ddb_vars": {
+       "ireach": "is_lakes",
+       "reservoir_id": "res_id",
+   }
+
+**2. Parameter CSV** — map the CSV column in
+``reservoir_coefficient_columns``:
+
+.. code-block:: python
+
+   "reservoir_coefficient_columns": {
+       "reservoir_id": "res_id",
+   }
+
+``MESHFlow`` matches ``res_id`` from the shapefile to ``res_id`` in the CSV.
+
+If the shapefile and CSV columns are both named ``reservoir_id``, you can
+omit ``reservoir_coefficient_columns`` and ``MESHFlow`` will auto-detect
+common column names.
+
+**Basin ID linking (legacy).** To join on the catchment ``main_id`` (for
+example, ``COMID``) instead of ``reservoir_id``:
+
+.. code-block:: python
+
+   "reservoir_coefficient_columns": {
+       "basin_id": "COMID",
+   }
+
+No ``reservoir_id`` entry in ``ddb_vars`` is required for basin linking.
+You can also set ``reservoir_params['link']`` to ``"basin_id"`` or
+``"reservoir_id"``.
+
+Column aliases
+~~~~~~~~~~~~~~
+
+If explicit column names are not given, ``MESHFlow`` searches for common
+aliases:
+
+- **Reservoir ID (default):** ``reservoir_id``, ``res_id``, ``reservoir``,
+  ``id``
+- **Basin ID:** ``main_id``, ``COMID``, ``comid``, ``basin_id``, ``id``
+- **Name:** ``name``, ``reservoir_name``, ``res_name``, ``reservoir``
+- **Coefficients:** ``b1`` / ``B1`` / ``WF_B1`` and ``b2`` / ``B2`` /
+  ``WF_B2``
+
+Full example
+~~~~~~~~~~~~
+
+.. code-block:: python
+   :linenos:
+
+   >>> from meshflow import MESHWorkflow
+   >>> mesh_workflow_instance = MESHWorkflow(
+   ...     cat=cat,
+   ...     riv=riv,
+   ...     landcover=landcover,
+   ...     main_id="COMID",
+   ...     ds_main_id="NextDownID",
+   ...     ddb_vars={
+   ...         "river_length": "lengthkm",
+   ...         "river_slope": "slope",
+   ...         "river_class": "order",
+   ...         "ireach": "is_lakes",
+   ...         "reservoir_id": "res_id",
+   ...         "lake_area": "lake_area_m2",
+   ...     },
+   ...     settings={
+   ...         "core": {
+   ...             "reservoir_coefficients": "reservoir_coefficients.csv",
+   ...             "reservoir_coefficient_columns": {
+   ...                 "reservoir_id": "res_id",
+   ...             },
+   ...         },
+   ...         "reservoir_params": {
+   ...             "reservoirs": {
+   ...                 "R-101": {"b1": 0.15, "b2": 0.25},
+   ...             },
+   ...         },
+   ...         "run_options": {
+   ...             "flags": {
+   ...                 "etc": {
+   ...                     "RESERVOIRFLAG": 1,
+   ...                     "RESERVOIRFILEFLAG": "tb0",
+   ...                 },
+   ...             },
+   ...         },
+   ...     },
+   ... )
+
+.. note::
+
+   Run ``init_ddb()`` before rendering reservoirs. ``run()`` builds
+   ``IREACH`` then calls ``render_configs()``, which includes
+   ``init_reservoir()``. ``save()`` only writes the already-rendered
+   reservoir strings; after editing ``reservoir_dict`` (or CLASS /
+   hydrology dicts), call ``render_configs()`` again before saving.
+
+.. note::
+
+   For more detail on the MESH reservoir input format, see the
+   `MESH_input_reservoir.txt documentation
+   <https://mesh-model.atlassian.net/wiki/spaces/USER/pages/6390254/MESH_input_reservoir.txt>`_.
 
 
 Class Parameters
@@ -860,9 +1178,41 @@ For example:
 Run Options
 ^^^^^^^^^^^
 
-.. warning::
-   Currently, the ``run_options`` section is not changeable, but it will be
-   developed while adding water management options to the model.
+.. _run-options-reservoir:
+
+The ``run_options`` section controls runtime flags and physical process
+activation. Several reservoir-related flags are available under
+``settings['run_options']['flags']`` (commonly in the ``etc`` group).
+
+Reservoir flags
+~~~~~~~~~~~~~~~
+
+.. code-block:: python
+   :linenos:
+
+   "run_options": {
+       "flags": {
+           "etc": {
+               "RESERVOIRFLAG": 1,
+               "RESERVOIRFILEFLAG": "txt",
+               "LOCATIONFLAG": 0,
+           },
+       },
+   }
+
+- ``RESERVOIRFLAG``: Enable lake/reservoir input. ``1`` uses power-curve
+  coefficients from ``reservoir_dict`` (seeded by CSV and/or
+  ``reservoir_params``); ``3`` writes coefficients as zero. See
+  :ref:`reservoir-settings`.
+
+- ``RESERVOIRFILEFLAG``: ``txt`` for ``MESH_input_reservoir.txt`` (default),
+  or ``tb0`` for ``MESH_input_reservoir.tb0``.
+
+- ``LOCATIONFLAG``: Location format in ``MESH_input_reservoir.txt`` — ``0``
+  for integer minutes, ``1`` for real minutes.
+
+Other run options (such as water management modules) may be added in future
+releases.
 
 Other Relevant Options
 ----------------------

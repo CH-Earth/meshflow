@@ -37,6 +37,12 @@ datasets. The workflow uses the Python API and data files included in the
     meteorological data)
 - *Shapefiles*: ``bcalgary_rivers.*``, ``bcalgary_subbasins.*`` (vector data
     for rivers and subbasins)
+- *Reservoirs*: ``reservoir_coefficients.csv`` (optional lake power-curve
+    coefficients); see :ref:`reservoir-settings` in the configuration guide
+
+The notebook ``meshflow_bow_at_calgary-grouping.ipynb`` demonstrates
+reservoir setup with ``RESERVOIRFLAG``, ``reservoir_coefficients``, and
+``ddb_vars['ireach']``.
 
 For a full, runnable example, see the Jupyter notebook:
 :download:`meshflow_bow_at_calgary.ipynb <../../examples/example-setup-python/meshflow_bow_at_calgary.ipynb>`

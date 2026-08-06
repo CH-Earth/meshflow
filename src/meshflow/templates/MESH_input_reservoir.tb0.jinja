@@ -1,0 +1,26 @@
+{{ tb0_banner }}
+:FileType tb0  ASCII
+#
+:WrittenBy          MESHflow
+:Version            {{ meshflow_version }}
+:CreationDate       {{ creation_date }}
+#
+:Projection         LATLONG
+#
+:StartTime          {{ start_time }}
+:DeltaT             {{ delta_t }}
+#
+{% if reservoirs -%}
+:ColumnMetaData
+   :ColumnType         {{ tb0_columns.column_type }}
+   :ColumnUnits        {{ tb0_columns.column_units }}
+   :ColumnName         {{ tb0_columns.column_name }}
+   :ColumnModel        {{ tb0_columns.column_model }}
+   :ColumnLocationX    {{ tb0_columns.column_location_x }}
+   :ColumnLocationY    {{ tb0_columns.column_location_y }}
+   :Coeff1             {{ tb0_columns.coeff1 }}
+   :Coeff2             {{ tb0_columns.coeff2 }}
+   :ReachArea          {{ tb0_columns.reach_area }}
+:EndColumnMetaData
+{% endif -%}
+:endHeader

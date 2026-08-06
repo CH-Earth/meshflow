@@ -36,6 +36,17 @@ from .utils import is_int, expand_grouped_keys
 from ._default_lists import _class_veg_params
 from ..templates.aliases import normalize_alias
 from .default_parameters_attrs import parameters_local_attrs as LOCAL_ATTRS
+from .reservoir import (
+    fortran_a12,
+    fortran_f7_1,
+    fortran_g10_3,
+    fortran_i2,
+    fortran_i5,
+    mesh_reservoir_name,
+    tb0_coeff,
+    tb0_location,
+    tb0_reach_area,
+)
 
 
 # custom type hints
@@ -50,6 +61,8 @@ except ImportError:  # <Python3.8
 TEMPLATE_CLASS = "MESH_parameters_CLASS.ini.jinja"
 TEMPLATE_HYDROLOGY = "MESH_parameters_hydrology.ini.jinja"
 TEMPLATE_RUN_OPTIONS = "MESH_input_run_options.ini.jinja"
+TEMPLATE_RESERVOIR = "MESH_input_reservoir.txt.jinja"
+TEMPLATE_RESERVOIR_TB0 = "MESH_input_reservoir.tb0.jinja"
 
 DEFAULT_CLASS_HEADER = resources.files("meshflow.templates").joinpath("default_CLASS_header.json")
 DEFAULT_CLASS_CASE = resources.files("meshflow.templates").joinpath("default_CLASS_case.json")
@@ -78,6 +91,15 @@ environment = Environment(
     line_comment_prefix='##',
 )
 environment.globals['raise'] = raise_helper
+environment.filters['fortran_i5'] = fortran_i5
+environment.filters['fortran_f7_1'] = fortran_f7_1
+environment.filters['fortran_g10_3'] = fortran_g10_3
+environment.filters['fortran_a12'] = fortran_a12
+environment.filters['fortran_i2'] = fortran_i2
+environment.filters['mesh_reservoir_name'] = mesh_reservoir_name
+environment.filters['tb0_coeff'] = tb0_coeff
+environment.filters['tb0_location'] = tb0_location
+environment.filters['tb0_reach_area'] = tb0_reach_area
 
 
 def deep_merge(
@@ -515,6 +537,77 @@ def render_run_options_template(
         return content
     else:
         return content + '\n'
+
+def render_reservoir_template(
+    reservoir_dict: Dict[str, Any],
+    template_reservoir_path: PathLike = TEMPLATE_RESERVOIR, # type: ignore
+) -> str:
+    """
+    Render ``MESH_input_reservoir.txt`` using a Jinja2 template.
+
+    Parameters
+    ----------
+    reservoir_dict : dict
+        Context dictionary produced by
+        :func:`meshflow.utility.reservoir.prepare_reservoir_context`.
+    template_reservoir_path : PathLike, optional
+        Path to the Jinja2 template for reservoir input.
+
+    Returns
+    -------
+    str
+        Rendered reservoir input file as a string.
+    """
+    template = environment.get_template(template_reservoir_path)
+    content = template.render(**reservoir_dict)
+
+    if content.endswith('\n'):
+        return content
+    return content + '\n'
+
+
+def render_blank_reservoir_template(location_flag: int = 0) -> str:
+    """
+    Render the blank ``MESH_input_reservoir.txt`` stub (``0 0 0`` header).
+
+    Used when reservoirs are disabled (``RESERVOIRFLAG`` missing or ``0``)
+    instead of copying a static default file.
+    """
+    return render_reservoir_template(
+        {
+            "n_reservoirs": 0,
+            "location_flag": int(location_flag),
+            "reservoirs": [],
+        }
+    )
+
+
+def render_reservoir_inflows_template(
+    inflows_dict: Dict[str, Any],
+    template_inflows_path: PathLike = TEMPLATE_RESERVOIR_TB0, # type: ignore
+) -> str:
+    """
+    Render ``MESH_input_reservoir.tb0`` using a Jinja2 template.
+
+    Parameters
+    ----------
+    inflows_dict : dict
+        Context dictionary produced by
+        :func:`meshflow.utility.reservoir.prepare_reservoir_inflows_context`.
+    template_inflows_path : PathLike, optional
+        Path to the Jinja2 template for reservoir inflows.
+
+    Returns
+    -------
+    str
+        Rendered reservoir inflows file as a string.
+    """
+    template = environment.get_template(template_inflows_path)
+    content = template.render(**inflows_dict)
+
+    if content.endswith('\n'):
+        return content
+    return content + '\n'
 
 def _extract_class_params(
     class_dict: Dict[str, Any],

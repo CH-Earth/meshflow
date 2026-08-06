@@ -14,6 +14,7 @@
    .. autosummary::
    
       ~MESHWorkflow.__init__
+      ~MESHWorkflow.check_process_parameters
       ~MESHWorkflow.format_date
       ~MESHWorkflow.from_dict
       ~MESHWorkflow.from_json
@@ -24,7 +25,10 @@
       ~MESHWorkflow.init_forcing
       ~MESHWorkflow.init_hydrology
       ~MESHWorkflow.init_options
+      ~MESHWorkflow.init_parameters_ds
+      ~MESHWorkflow.init_reservoir
       ~MESHWorkflow.maybe_int
+      ~MESHWorkflow.render_configs
       ~MESHWorkflow.run
       ~MESHWorkflow.save
    
