@@ -2147,9 +2147,8 @@ class MESHWorkflow(object):
         _freq_long = utility.forcing_prep.freq_long_name(_freq)
 
         _encoding = {
-            'time': {
-                'units': f'{_freq_long} since 1900-01-01 12:00:00'
-            }
+            'units': f'{_freq_long} since 1900-01-01 12:00:00',
+            'calendar': 'standard',
         }
         ds.time.encoding = _encoding
 
